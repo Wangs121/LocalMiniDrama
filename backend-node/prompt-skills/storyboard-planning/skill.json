@@ -1,0 +1,15 @@
+{
+  "id": "storyboard-planning",
+  "name": "分镜与场景调度",
+  "version": "2.0.0",
+  "description": "分镜板分析、格间关系、空间调度、镜头拆解、拼贴规避和生产流水线。",
+  "license": "MIT",
+  "author": "Seedance Prompt Skill Contributors; adapted by LocalMiniDrama",
+  "homepage": "https://github.com/MapleShaw/seedance2.0-prompt-skill",
+  "stages": ["storyboard", "frame_prompt"],
+  "priority": 85,
+  "stage_references": {
+    "storyboard": ["references/guide.md", "references/storyboard-driven.md", "references/production-pipeline.md"],
+    "frame_prompt": ["references/guide.md", "references/storyboard-driven.md"]
+  }
+}

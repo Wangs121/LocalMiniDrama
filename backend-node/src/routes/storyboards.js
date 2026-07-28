@@ -383,12 +383,23 @@ function routes(db, log) {
     },
     episodeStoryboardsGenerate: (req, res) => {
       try {
+        const promptSkillIds = Array.isArray(req.query.prompt_skill_ids)
+          ? req.query.prompt_skill_ids
+          : (typeof req.query.prompt_skill_ids === 'string'
+              ? req.query.prompt_skill_ids.split(',').map((id) => id.trim()).filter(Boolean)
+              : undefined);
         const taskId = episodeStoryboardService.generateStoryboard(
           db,
           log,
           req.params.episode_id,
           req.query.model,
-          req.query.style
+          req.query.style,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          promptSkillIds
         );
         response.success(res, { task_id: taskId, status: 'pending', message: '分镜头生成任务已创建，正在后台处理...' });
       } catch (err) {
@@ -512,7 +523,7 @@ function routes(db, log) {
 
         const polishedPrompt = await aiClient.generateText(
           db, log, 'text', userPromptLines.join('\n'), promptI18n.getImagePolishPrompt(),
-          { scene_key: 'image_polish', max_tokens: 300, temperature: 0.3 }
+          { scene_key: 'image_polish', max_tokens: 300, temperature: 0.3, prompt_skill_stage: 'frame_prompt', prompt_skill_insert_before_output: true, prompt_skill_storyboard_id: sbId, prompt_skill_ids: req.body?.prompt_skill_ids }
         );
 
         if (!polishedPrompt || polishedPrompt.trim().length < 10) {
@@ -566,7 +577,7 @@ function routes(db, log) {
           'text',
           userPrompt,
           promptI18n.getUniversalOmniSegmentPrompt(),
-          { scene_key: 'image_polish', max_tokens: 2400, temperature: 0.28 }
+          { scene_key: 'image_polish', max_tokens: 2400, temperature: 0.28, prompt_skill_stage: 'video_prompt', prompt_skill_insert_before_output: true, prompt_skill_storyboard_id: sbId, prompt_skill_ids: req.body?.prompt_skill_ids }
         );
         if (!out || String(out).trim().length < 20) {
           return response.badRequest(res, 'AI 返回内容过短，请检查文本模型配置');
@@ -621,6 +632,10 @@ function routes(db, log) {
             max_tokens: 2400,
             temperature: 0.28,
             silence_timeout_ms: 180000,
+            prompt_skill_stage: 'video_prompt',
+            prompt_skill_insert_before_output: true,
+            prompt_skill_storyboard_id: sbId,
+            prompt_skill_ids: req.body?.prompt_skill_ids,
           },
           (delta) => writeNd({ type: 'delta', text: delta })
         );
@@ -702,8 +717,8 @@ function routes(db, log) {
       const polishUserPrompt = [
         'TASK: POLISH_UNIVERSAL_OMNI_SEGMENT',
         `POLISH_PASS_STAMP: ${polishPassStamp}`,
-        'POLISH_REFRESH（多次点击「润色」时强制）: 在严格遵守 MULTI_BEAT_OUTPUT、子分镜秒数之和=TOTAL_CLIP_SECONDS、IMAGE_SLOT_MAP、不编造剧本外情节的前提下，**本轮输出须与 CURRENT_OMNI_DRAFT 在中文表述上有明显差异**（换动词/语序、合并或拆分从句、加强或收紧运镜与情绪描写均可；**第3行仍须与 LINE3_REQUIRED 完全一致**）。除第3行外，**禁止**与草稿逐字相同或仅标点差异；若 M 与秒数分配不变，子分镜正文也须重写措辞。',
-        'DIALOGUE_RETENTION（硬性，与 system 全能润色一致）: BASE_OMNI_CONTRACT 内 STORYBOARD FIELDS 的 DIALOGUE、NARRATION、VIDEO_PROMPT 及 CURRENT_OMNI_DRAFT 中一切对白/旁白/引号句，成稿各「分镜k」行须**逐条以「」或明确旁白写出**，保留笑点、数字、剧名、奖项名等关键信息；禁止用「两人对话」「念词带过」等概括替代具体台词。总秒数与各 Tk 不变前提下提高信息密度：台词与反应优先，少写无推进的纯氛围叠句。',
+        'POLISH_REFRESH（多次点击「润色」时强制）: 在严格遵守 MULTI_BEAT_OUTPUT、整段 TOTAL_CLIP_SECONDS 容量、IMAGE_SLOT_MAP、不编造剧本外情节的前提下，**本轮输出须与 CURRENT_OMNI_DRAFT 在中文表述上有明显差异**（换动词/语序、合并或拆分视觉事件、加强动作物理细节均可；**第3行仍须与 LINE3_REQUIRED 完全一致**）。除第3行外，**禁止**与草稿逐字相同或仅标点差异；旧的逐镜头时间戳格式须改写为不含精确时间戳的「镜头k：」格式。',
+        'DIALOGUE_RETENTION（硬性，与 system 全能润色一致）: BASE_OMNI_CONTRACT 内 STORYBOARD FIELDS 的 DIALOGUE、NARRATION、VIDEO_PROMPT 及 CURRENT_OMNI_DRAFT 中一切对白/旁白/引号句，成稿各「镜头k」行须**逐条以「」或明确旁白写出**，保留笑点、数字、剧名、奖项名等关键信息；禁止用「两人对话」「念词带过」等概括替代具体台词。按剧情自然分配节奏：台词与可见反应优先，少写无推进的纯氛围叠句。',
         'You are refining the CURRENT omni multi-beat prompt for a short drama vertical-video shot.',
         `FULL_EPISODE_SCRIPT（本集完整剧本，用于信息对齐与连戏；不得引入剧本未写的情节）:\n${scriptText || '(本集剧本正文为空，请仅依据下方 STORYBOARD FIELDS 与邻镜信息)'}`,
         '',
@@ -743,6 +758,10 @@ function routes(db, log) {
             max_tokens: 4096,
             temperature: 0.52,
             silence_timeout_ms: 180000,
+            prompt_skill_stage: 'video_prompt',
+            prompt_skill_insert_before_output: true,
+            prompt_skill_storyboard_id: sbId,
+            prompt_skill_ids: req.body?.prompt_skill_ids,
           },
           (delta) => writeNd({ type: 'delta', text: delta })
         );
@@ -1000,6 +1019,10 @@ function routes(db, log) {
             max_tokens: 3600,
             temperature: 0.28,
             silence_timeout_ms: 180000,
+            prompt_skill_stage: 'video_prompt',
+            prompt_skill_insert_before_output: true,
+            prompt_skill_storyboard_id: sbId,
+            prompt_skill_ids: req.body?.prompt_skill_ids,
           },
           (delta) => writeNd({ type: 'delta', text: delta })
         );

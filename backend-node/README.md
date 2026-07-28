@@ -363,7 +363,8 @@ style:
 **火山方舟 Seedance 2.0 · 全能 / 多参考图（`volcengine_omni`）：**
 
 - 在前端「AI 配置 → 视频生成」选择接口规范 **`volcengine_omni`**，厂商仍为火山引擎；**Base URL** 一般为 `https://ark.cn-beijing.volces.com/api/v3`；**模型**填控制台接入点（如 `doubao-seedance-2-0-260128`、`doubao-seedance-2-0-fast-260128`）。
-- 与制作页分镜 **「全能模式」** 配合：首条为文本提示，其余参考图为场景/角色/道具/分镜主图等，每张 **`role: reference_image`**；方舟侧最多取 **9** 张。
+- 与制作页分镜 **「全能模式」** 配合：首条为文本提示；首帧、尾帧分别使用 **`role: first_frame`**、**`role: last_frame`**，场景/角色/道具等普通素材使用 **`role: reference_image`**。图片会按 URL 去重，三类图片合计最多取 **9** 张。
+- 首尾帧与多参考图可以同时提交；前端、任务服务和 `volcengine_omni` 请求组装会完整透传关键帧，不会再因存在 `reference_image_urls` 而丢弃首尾帧。
 - **Seedance 2.x** 请求时长会在后端吸附到 **4–15 秒**；默认走 `POST /v1/videos/generations`（可用配置 **Endpoint** 覆盖）。实现见 `videoClient.js`（`volcengine_omni` 分支）。
 
 **可灵 Omni（`kling_omni`）** 同样支持分镜全能模式的多图参考与片段描述-only 提交逻辑，配置方式见前端 AI 配置页说明。
@@ -371,6 +372,28 @@ style:
 ### 提示词国际化
 
 `promptI18n.js` 管理所有提示词模板，支持中文（zh）和英文（en）两套模板，通过 `config.yaml` 中的 `language` 字段切换。
+
+### 通用创作 Skill
+
+`prompt-skills/` 中的 Skill 为模型无关的 Markdown 专业知识包。后端根据调用方声明的生成阶段，只加载该阶段配置的参考文件，并追加到 system prompt；Skill 不能覆盖项目事实、角色连续性、安全规则、厂商限制或输出格式。
+
+当前阶段支持：`story`、`storyboard`、`image_prompt`、`frame_prompt`、`video_prompt`。内置能力包包括 `cinematic-camera`、`visual-aesthetics`、`creative-strategy`、`editing-rhythm`、`storyboard-planning` 和 `long-video-planning`，已接入分镜、首尾帧和经典/全能视频提示词生成。内容由 MapleShaw 的 MIT 项目人工精炼，版权与来源见 `prompt-skills/NOTICE.md`；模型或厂商特有参数仍由对应适配层处理。
+
+```text
+prompt-skills/my-skill/
+├── skill.json
+├── SKILL.md
+└── references/
+    └── camera.md
+```
+
+`skill.json` 使用 `id`、`name`、语义化 `version`、`description`、`license`、`author`、`stages`、`priority` 和 `stage_references` 描述路由。仅允许 Markdown、纯文本和 JSON；ZIP/浏览器目录导入会拒绝路径穿越、符号链接、脚本、二进制、重复路径和超限文件。用户 Skill 安装后默认停用，预览确认后再启用。
+
+桌面版内置包位于发布资源的 `prompt-skills/`；用户包位于 `%APPDATA%/localminidrama-desktop/backend/data/prompt-skills/`，重新安装或升级 EXE 不会覆盖。选择优先级为单次请求 > 项目 `metadata.prompt_skill_ids` > 全局启用列表；项目空数组表示禁用全部，未配置表示继承全局。每个引用最多注入 64,000 字符，总 Skill 上下文最多 128,000 字符；内置 2.0 能力包在分镜、首尾帧、视频提示词阶段分别注入约 68K、42K、57K 字符，正常阶段不截断。
+
+管理接口包括 `GET /api/v1/prompt-skills`、`GET /api/v1/prompt-skills/:id`、`POST /api/v1/prompt-skills/import`、`PUT /api/v1/prompt-skills/:id`、`DELETE /api/v1/prompt-skills/:id`，以及项目级 `GET/PUT /api/v1/dramas/:drama_id/prompt-skills`。
+
+真实视频对比前请使用 [`docs/prompt-skill-ab-test.md`](../docs/prompt-skill-ab-test.md) 的固定样本和审核清单；默认不会自动调用视频模型或消耗额度。
 
 ---
 

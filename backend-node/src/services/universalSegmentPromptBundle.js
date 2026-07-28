@@ -1,3 +1,34 @@
+function compactStableSubjectTraits(identityAnchors, appearance) {
+  let anchors = identityAnchors;
+  if (typeof anchors === 'string' && anchors.trim()) {
+    try { anchors = JSON.parse(anchors); } catch (_) { anchors = null; }
+  }
+  if (anchors && typeof anchors === 'object' && !Array.isArray(anchors)) {
+    const candidates = [
+      anchors.face_shape,
+      anchors.facial_features,
+      anchors.hair_style,
+      anchors.unique_marks && !/^(none|unspecified)$/i.test(String(anchors.unique_marks)) ? anchors.unique_marks : '',
+      anchors.skin_texture,
+    ]
+      .map((value) => String(value || '').trim())
+      .filter((value) => value && !/^unspecified$/i.test(value));
+    if (candidates.length) return candidates.slice(0, 3).map((value) => value.slice(0, 90)).join('；');
+  }
+
+  return String(appearance || '')
+    .replace(/身穿[^，。；\n]*/g, '')
+    .replace(/穿着[^，。；\n]*/g, '')
+    .replace(/手持[^，。；\n]*/g, '')
+    .replace(/戴着[^，。；\n]*/g, '')
+    .split(/[，。；\n]/)
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 2)
+    .slice(0, 3)
+    .map((value) => value.slice(0, 90))
+    .join('；');
+}
+
 /**
  * 全能片段（Omni / Seedance 多图参考）用户消息构建：供「生成」与「润色」共用。
  * @param {import('better-sqlite3').Database} db
@@ -139,10 +170,11 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
   for (const ent of charOrderEntries) {
     let row = null;
     if (ent.key.startsWith('drama:')) {
-      row = db.prepare('SELECT name FROM characters WHERE id = ? AND deleted_at IS NULL').get(Number(ent.key.slice(6)));
+      row = db.prepare('SELECT name, appearance, identity_anchors, local_path, image_url FROM characters WHERE id = ? AND deleted_at IS NULL').get(Number(ent.key.slice(6)));
     } else if (ent.key.startsWith('lib:')) {
-      row = db.prepare('SELECT name FROM character_libraries WHERE id = ? AND deleted_at IS NULL').get(Number(ent.key.slice(4)));
+      row = db.prepare('SELECT name, appearance, identity_anchors, local_path, image_url FROM character_libraries WHERE id = ? AND deleted_at IS NULL').get(Number(ent.key.slice(4)));
     }
+    ent.row = row || null;
     const nm = (row?.name || ent.nameHint || '').trim();
     if (nm && !nameSeen.has(nm)) {
       nameSeen.add(nm);
@@ -202,28 +234,19 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
   }
 
   const slots = [];
-  const pushSlot = (kind, summary) => {
+  const pushSlot = (kind, summary, stableTraits = '') => {
     const num = slots.length + 1;
     const brief = String(summary || '').trim() || kind;
-    slots.push({ num, tag: `@图片${num}`, kind, summary: brief });
+    slots.push({ num, tag: `@图片${num}`, kind, summary: brief, stableTraits: String(stableTraits || '').trim() });
   };
   if (sceneRow && hasMediaRef(sceneRow)) {
     pushSlot('场景', String(sceneRow.location || '').trim() || '场景环境');
   }
   for (const ent of charOrderEntries) {
-    let row = null;
-    if (ent.key.startsWith('drama:')) {
-      row = db
-        .prepare('SELECT name, local_path, image_url FROM characters WHERE id = ? AND deleted_at IS NULL')
-        .get(Number(ent.key.slice(6)));
-    } else if (ent.key.startsWith('lib:')) {
-      row = db
-        .prepare('SELECT name, local_path, image_url FROM character_libraries WHERE id = ? AND deleted_at IS NULL')
-        .get(Number(ent.key.slice(4)));
-    }
+    const row = ent.row;
     if (!hasMediaRef(row)) continue;
     const cn = String(row.name || ent.nameHint || '角色').trim();
-    pushSlot('角色', cn);
+    pushSlot('角色', cn, compactStableSubjectTraits(row.identity_anchors, row.appearance));
   }
   for (const pr of propRows) {
     if (!hasMediaRef(pr)) continue;
@@ -240,9 +263,10 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
             : 'CHARACTER_IMAGE_BINDING（首张参考图非场景，以 IMAGE_SLOT_MAP 为准；人物与下列 @图片N 一一对应）:',
           ...charSlots.map((s) =>
             sceneFirst
-              ? `「${s.summary}」→ ${s.tag}（外貌/动作绑定 ${s.tag} ，示例：${s.tag} 的侧脸；禁止「@图片1 中的${s.summary}」）`
-              : `「${s.summary}」→ ${s.tag}（外貌/动作绑定 ${s.tag} ，示例：${s.tag} 的侧脸）`
+              ? `「${s.summary}」→ ${s.tag}（外貌/动作绑定 ${s.tag}；稳定静态特征仅限：${s.stableTraits || '参考图已锁定，禁止另行编造'}；禁止「@图片1 中的${s.summary}」）`
+              : `「${s.summary}」→ ${s.tag}（外貌/动作绑定 ${s.tag}；稳定静态特征仅限：${s.stableTraits || '参考图已锁定，禁止另行编造'}）`
           ),
+          '- SUBJECT_IDENTITY_CONTRACT：后续每个镜头始终使用同一姓名、同一 @图片N 与上述同一组 2–3 个稳定特征；不得换称呼、改外貌、改妆造或添加未提供特征。',
         ].join('\n')
       : slots.length === 0 && forceWithoutReferenceImages
         ? [
@@ -270,7 +294,7 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
       '（解析结果：无已绑定图像的槽位 — 优先依据剧本与分镜字段写清运镜、节奏与情绪；可不使用 @图片N，或自 @图片1 起预留占位，勿编造与剧本矛盾的细节。）',
     ].join('\n');
     line3Required =
-      '当前尚未上传参考图；以剧本与分镜字段书写整段内的运镜与时间轴；若写 @图片N 仅为后续补图预留占位，勿将具体人脸绑定到尚未确定序号的图片；勿编造与剧本矛盾的情节。';
+      '当前尚未上传参考图；以剧本与分镜字段书写动作因果与自然节奏；若写 @图片N 仅为后续补图预留占位，勿将具体人脸绑定到尚未确定序号的图片；勿编造与剧本矛盾的情节；无字幕、无 Logo、无水印。';
   } else {
     imageSlotMapBlock = [
       'IMAGE_SLOT_MAP（全能模式提交视频时参考图顺序；正文仅可使用下列占位符，与 API 一致）:',
@@ -278,8 +302,8 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
     ].join('\n');
     line3Required =
       slots[0].kind === '场景'
-        ? '环境、光影与陈设定性参考 @图片1。若 @图片1 为宫格或多画面拼图，禁止成片复刻其分格或并列布局，仅提取统一的室内空间与光线语义；须单镜头完整连续画面。'
-        : '本片段以首张参考图 @图片1 作为画面锚点展开。';
+        ? '环境、光影与陈设定性参考 @图片1。若 @图片1 为宫格或多画面拼图，仅提取统一空间与光线语义；每个镜头均须为完整连续单画幅，禁止分屏宫格、字幕、Logo、水印。'
+        : '本片段以首张参考图 @图片1 作为画面锚点展开；每个镜头均须为完整连续单画幅，无字幕、无 Logo、无水印。';
   }
 
   const charCount = charNamesOrdered.length;
@@ -344,7 +368,7 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
     ? [
         'SCENE_REFERENCE_LAYOUT（场景参考图可能是多宫格/多视角拼图，仅作内容与空间参考，成片禁止模仿拼图）:',
         '- 场景槽位（通常为 @图片1）常见为四宫格、九宫格或带分割线的多视角场景图：只提取家具、装修、色调、空间关系与光影，不要在提示中引导模型生成「分屏、宫格、多画面并列、复刻参考图网格」。',
-        '- 每一个「分镜k： Tk秒:」所在行的正文里都应点明：单镜头连续画幅、无成片宫格分屏；参考拼图仅用于理解空间与光线。',
+        '- 每一个「镜头k：」所在行都必须是完整连续单画幅、无成片宫格分屏；参考拼图仅用于理解空间与光线。',
       ].join('\n')
     : '';
 
@@ -362,7 +386,6 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
     episodeScript = `${episodeScript.slice(0, SCRIPT_CAP)}\n...[EPISODE_SCRIPT_TRUNCATED]`;
   }
 
-  const mHeuristic = Math.min(8, Math.max(1, Math.round(durationSec / 5)));
   let shotPacingBlock = '';
   try {
     const all = db
@@ -380,22 +403,22 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
     const segChange = ix > 0 && currSeg && prevSeg && currSeg !== prevSeg;
     shotPacingBlock = [
       'SHOT_PACING_AND_POSITION:',
-      `TOTAL_CLIP_SECONDS: ${durationLabel}（本条数据库分镜 = 一次成片 API 的整段时长；下文 M 个子分镜仅为同一时间轴内节拍拆分）`,
-      `M_HEURISTIC_ONLY: 约 ${mHeuristic}（不得照抄为最终 M；须结合剧本高潮/对白密度/转场/机位与 movement 等自决 1～8 的整数 M）`,
+      `TOTAL_CLIP_SECONDS: ${durationLabel}（本条数据库分镜 = 一次成片 API 的整段容量边界；禁止为内部镜头标注或计算精确秒数）`,
+      'SHOT_COUNT_RULE: 仅按独立视觉事件、动作转折、对白反应和转场需要自决 1～8 个镜头；不要按总时长机械换算镜头数，短片段应主动精简动作。',
       `SHOT_ORDER: ${ix >= 0 ? ix + 1 : '?'} / ${totalShots}`,
       `SHOT_POSITION_TAG: ${posTag}`,
       chunk('SEGMENT_TITLE_PREV', prevSeg || null),
       chunk('SEGMENT_TITLE_CURRENT', currSeg || null),
       chunk('SEGMENT_TITLE_NEXT', nextSeg || null),
       segChange
-        ? 'BOUNDARY_HINT: 段落标题相对上一镜已变化 → 转场/新叙事块概率高 → 可提高 M 或前几秒侧重空间/情绪铺垫再入冲突。'
-        : 'BOUNDARY_HINT: 同段落延续 → M 可保守；若 ACTION 内对白长、机位少，也可 M=1 但在单行内写满时间流动。',
+        ? 'BOUNDARY_HINT: 段落标题相对上一镜已变化 → 转场/新叙事块概率高，可增加一个建立空间或情绪的镜头再进入冲突。'
+        : 'BOUNDARY_HINT: 同段落延续 → 镜头数应保守；若 ACTION 连续且机位少，可用一个长镜头自然完成。',
     ].join('\n');
   } catch (_) {
     shotPacingBlock = [
       'SHOT_PACING_AND_POSITION:',
       `TOTAL_CLIP_SECONDS: ${durationLabel}`,
-      `M_HEURISTIC_ONLY: 约 ${mHeuristic}`,
+      'SHOT_COUNT_RULE: 按独立视觉事件决定镜头数，不按时长机械换算，不输出内部精确秒数。',
     ].join('\n');
   }
 
@@ -433,33 +456,42 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
   } catch (_) {}
 
   const multiBeatContract = [
-    'MULTI_BEAT_OUTPUT（一条成片 API 内的多节拍文案）:',
-    '- 总行数 = 3 + M。M 为你选择的子分镜条数（时间轴节拍），整数 1～8。',
+    'MULTI_BEAT_OUTPUT（一条成片 API 内的顺序镜头文案）:',
+    '- 总行数 = 3 + M。M 为独立视觉事件对应的镜头条数，整数 1～8。',
     '- 第1行：「画面风格和类型:」…',
-    `- 第2行：必须为「生成一个由以下M个分镜组成的视频。」（将 M 替换为你的整数；与下文实际「分镜1…分镜M」条数一致）。`,
+    `- 第2行：必须为「生成一个由以下M个镜头组成的视频。」（将 M 替换为你的整数；与下文实际「镜头1…镜头M」条数一致）。`,
     '- 第3行：必须逐字等于 LINE3_REQUIRED（见下）。',
-    '- 第4行到第(3+M)行：依次为「分镜1： T1秒:」「分镜2： T2秒:」…「分镜M： TM秒:」；每行冒号后先写秒数再写该子时段内的动态影像与运镜描写。',
-    `- 约束：T1+T2+…+TM 必须严格等于 TOTAL_CLIP_SECONDS（数值与 ${durationLabel} 一致）；每个 Tk>0；子分镜序号连续无跳号。`,
-    '- 若 M=1：即仅一行「分镜1： TOTAL秒:」写满整段；若 M>1：每行只覆盖本子时段，前后行衔接成连续时间线，避免剧情跳跃或重复前一行已完成的动作。',
-    '- 禁止额外说明行、markdown、英文小标题；禁止把「子分镜」写成多次独立成片 API。',
+    '- 第4行到第(3+M)行：依次为「镜头1：」「镜头2：」…「镜头M：」；禁止在镜头标题或正文中写精确时间戳。',
+    `- TOTAL_CLIP_SECONDS=${durationLabel} 只限制整段可容纳的动作与对白复杂度；模型按剧情自然分配节奏，短时长应删减动作，不得要求内部镜头秒数相加。`,
+    '- 每行只写一个连续视觉事件，按「初态→触发→动作细节→惯性衔接→可见结果」推进；每镜最多一个主要运镜，复杂动作优先固定机位或极简跟随。',
+    '- 情绪必须外化为眼神、呼吸、肩颈、手部和姿态；镜头需写清相机起点、方向、停止位置与最终构图。',
+    '- 镜头序号连续无跳号，前后衔接成同一条时间线；禁止额外说明行、markdown、英文小标题，也禁止把内部镜头写成多次独立成片 API。',
+  ].join('\n');
+
+  const materialRoleContract = [
+    'MATERIAL_ROLE_CONTRACT（素材职责必须清晰）:',
+    '- 图片负责锁定人物身份、场景空间、光影、构图与道具外观；动作、运镜、节奏和特效由文字明确描述，禁止把未写明的动态责任推给参考图。',
+    '- 重要人物与场景绑定以 IMAGE_SLOT_MAP 和 CHARACTER_IMAGE_BINDING 为最高优先级，并在所有镜头中保持不变。',
+    '- 输出必须明确：无字幕、无 Logo、无水印。',
   ].join('\n');
 
   const userPrompt = [
     `TOTAL_CLIP_SECONDS: ${durationLabel}`,
     `DURATION_SECONDS: ${durationLabel}`,
     multiBeatContract,
-    shotPacingBlock,
-    neighborDetailBlock || null,
     'LINE3_REQUIRED（第3行必须与下面整句完全一致，含标点）:',
     line3Required,
-    `EPISODE_SCRIPT:\n${episodeScript || '(本集剧本为空；仅凭分镜与邻镜推断节奏，勿编造大段新剧情)'}`,
-    chunk('EPISODE_TABLE_TITLE', episodeTableTitle),
     imageSlotMapBlock,
     sceneLayoutBlock || null,
     charBindingBlock,
-    styleHintBlock,
+    materialRoleContract,
     refContract,
     assetLine,
+    shotPacingBlock,
+    neighborDetailBlock || null,
+    `EPISODE_SCRIPT:\n${episodeScript || '(本集剧本为空；仅凭分镜与邻镜推断节奏，勿编造大段新剧情)'}`,
+    chunk('EPISODE_TABLE_TITLE', episodeTableTitle),
+    styleHintBlock,
     sceneBlock || null,
     `CONTEXT_PREV_SHORT: ${prevDesc}`,
     `CONTEXT_NEXT_SHORT: ${nextDesc}`,
@@ -480,4 +512,4 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
   };
 }
 
-module.exports = { buildUniversalSegmentUserPromptBundle };
+module.exports = { buildUniversalSegmentUserPromptBundle, compactStableSubjectTraits };

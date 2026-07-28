@@ -6,6 +6,7 @@ const { aspectRatioToSize } = require('./imageService');
 const aiClient = require('./aiClient');
 const promptI18n = require('./promptI18n');
 const { mergeCfgStyleWithDrama } = require('../utils/dramaStyleMerge');
+const { resolveStylePreset } = require('../constants/generationStylePresets');
 const jimengMaterialHubService = require('./jimengMaterialHubService');
 const modelArkAssetConfigService = require('./modelArkAssetConfigService');
 const uploadService = require('./uploadService');
@@ -21,15 +22,27 @@ const {
 function applyStyleOverrideToCfg(cfg, styleOverride) {
   const o = (styleOverride || '').toString().trim();
   if (!o) return cfg;
+  const preset = resolveStylePreset(o);
+  const styleZh = preset?.zh || o;
+  const styleEn = preset?.en || o;
   return {
     ...cfg,
     style: {
       ...(cfg?.style || {}),
-      default_style_zh: o,
-      default_style_en: o,
-      default_style: o,
+      default_style_zh: styleZh,
+      default_style_en: styleEn,
+      default_style: styleEn,
     },
   };
+}
+
+function promptUsesCurrentStyle(prompt, cfg) {
+  const text = (prompt || '').toString().trim().toLowerCase();
+  if (!text) return false;
+  const styleEn = (cfg?.style?.default_style_en || cfg?.style?.default_style || '').toString().trim().toLowerCase();
+  const styleZh = (cfg?.style?.default_style_zh || '').toString().trim().toLowerCase();
+  const candidates = [styleEn, styleZh].filter(Boolean);
+  return candidates.length === 0 || candidates.some((style) => text.includes(style));
 }
 
 function appendPrompt(base, extra) {
@@ -541,11 +554,18 @@ async function generateCharacterFourViewImage(db, log, cfg, characterId, modelNa
   mergedCfg = applyStyleOverrideToCfg(mergedCfg, style);
   let imagePrompt;
 
-  if (charRow.polished_prompt && String(charRow.polished_prompt).trim()) {
+  if (
+    charRow.polished_prompt &&
+    String(charRow.polished_prompt).trim() &&
+    promptUsesCurrentStyle(charRow.polished_prompt, mergedCfg)
+  ) {
     // 直接使用已保存的提示词（用户可能已编辑过）
     imagePrompt = String(charRow.polished_prompt).trim();
     log.info('[四视图] 使用已保存的 polished_prompt，跳过文字AI', { character_id: characterId });
   } else {
+    if (charRow.polished_prompt && String(charRow.polished_prompt).trim()) {
+      log.info('[四视图] 项目画风已变化，重新生成角色提示词', { character_id: characterId });
+    }
     // 没有预生成提示词，临时生成（与 generateCharacterPromptOnly 同逻辑）
     let appearanceText = '';
     if (charRow.appearance && String(charRow.appearance).trim()) {
@@ -1063,4 +1083,6 @@ module.exports = {
   extractAppearanceFromImage,
   registerCharacterJimengMaterialAsset,
   refreshCharacterJimengMaterialAsset,
+  applyStyleOverrideToCfg,
+  promptUsesCurrentStyle,
 };

@@ -1,0 +1,15 @@
+{
+  "id": "editing-rhythm",
+  "name": "动作与剪辑节奏",
+  "version": "2.0.0",
+  "description": "六套节奏公式、镜头长度、动作接点、转场、声音联动和 AI 素材修复策略。",
+  "license": "MIT",
+  "author": "Seedance Prompt Skill Contributors; adapted by LocalMiniDrama",
+  "homepage": "https://github.com/MapleShaw/seedance2.0-prompt-skill",
+  "stages": ["storyboard", "video_prompt"],
+  "priority": 75,
+  "stage_references": {
+    "storyboard": ["references/guide.md", "references/editing-rhythm.md"],
+    "video_prompt": ["references/guide.md", "references/editing-rhythm.md"]
+  }
+}

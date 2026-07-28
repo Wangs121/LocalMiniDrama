@@ -16,7 +16,8 @@
     "dist:cn": "node scripts/dist-cn.js",
     "dist:mac": "bash dist-mac.sh",
     "postinstall": "node scripts/copy-backend.js && electron-builder install-app-deps",
-    "prepare-backend": "node scripts/copy-backend.js"
+    "prepare-backend": "node scripts/copy-backend.js",
+    "verify:skills": "node scripts/verify-skills.js"
   },
   "dependencies": {
     "@volcengine/openapi": "^1.36.1",

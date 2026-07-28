@@ -515,6 +515,24 @@ function normalizeVolcOmniDuration(modelName, durationNum) {
   return normalizeVolcengineDuration(modelName, durationNum);
 }
 
+function buildVolcOmniImageCandidates(opts, maxImages = 9) {
+  const candidates = [];
+  const seen = new Set();
+  const add = (url, role) => {
+    const normalized = String(url || '').trim();
+    if (!normalized || seen.has(normalized) || candidates.length >= maxImages) return;
+    seen.add(normalized);
+    candidates.push({ url: normalized, role });
+  };
+
+  add(opts.first_frame_url || opts.image_url, 'first_frame');
+  add(opts.last_frame_url, 'last_frame');
+  for (const url of Array.isArray(opts.reference_urls) ? opts.reference_urls : []) {
+    add(url, 'reference_image');
+  }
+  return candidates;
+}
+
 /**
  * 火山引擎方舟 — Seedance 2.0 等「全能/多参考图」视频
  * 与标准 volcengine 共用：POST {base}/contents/generations/tasks，GET {base}/contents/generations/tasks/{id}
@@ -531,6 +549,8 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
     camera_fixed,
     watermark,
     image_url,
+    first_frame_url,
+    last_frame_url,
     reference_urls,
     files_base_url,
     storage_local_path,
@@ -544,11 +564,12 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
   const ratio = aspect_ratio || '16:9';
   const effectiveDuration = normalizeVolcOmniDuration(finalModel, duration);
 
-  const refList = Array.isArray(reference_urls) ? reference_urls.filter(Boolean) : [];
-  const primary = (image_url || '').trim();
-  const orderedUrls = [...(primary ? [primary] : []), ...refList.filter((u) => u !== primary)];
-  const maxRef = 9;
-  const urls = orderedUrls.slice(0, maxRef);
+  const imageCandidates = buildVolcOmniImageCandidates({
+    image_url,
+    first_frame_url,
+    last_frame_url,
+    reference_urls,
+  });
 
   const body = {
     model: finalModel,
@@ -561,10 +582,11 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
   if (seed != null) body.seed = Number(seed);
   if (camera_fixed != null) body.camera_fixed = Boolean(camera_fixed);
 
-  if (urls.length) {
-    for (let i = 0; i < urls.length; i++) {
+  if (imageCandidates.length) {
+    for (let i = 0; i < imageCandidates.length; i++) {
+      const candidate = imageCandidates[i];
       let u = await resolveVolcOmniImageAsync(
-        urls[i],
+        candidate.url,
         files_base_url,
         storage_local_path,
         log,
@@ -594,7 +616,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
       const part = {
         type: 'image_url',
         image_url: { url: u },
-        role: 'reference_image',
+        role: candidate.role,
       };
       body.content.push(part);
     }
@@ -668,7 +690,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
     model: finalModel,
     ratio,
     duration: effectiveDuration,
-    image_count: urls.length,
+    image_count: imageCandidates.length,
     has_voice_ref: !!voice_reference_url,
     video_gen_id,
   });
@@ -676,7 +698,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
     model: finalModel,
     ratio,
     duration: effectiveDuration,
-    image_count: urls.length,
+    image_count: imageCandidates.length,
     has_voice_ref: !!voice_reference_url,
   });
 
@@ -3548,6 +3570,8 @@ async function callVideoApi(db, log, opts) {
       camera_fixed: opts.camera_fixed,
       watermark: opts.watermark,
       image_url: opts.image_url,
+      first_frame_url: opts.first_frame_url,
+      last_frame_url: opts.last_frame_url,
       reference_urls: opts.reference_urls,
       files_base_url: opts.files_base_url,
       storage_local_path: opts.storage_local_path,
@@ -4079,4 +4103,5 @@ module.exports = {
   formatVideoPostBodyForLog,
   isSeedance2FamilyModel,
   normalizeVolcengineDuration,
+  buildVolcOmniImageCandidates,
 };

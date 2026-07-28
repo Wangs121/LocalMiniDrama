@@ -283,50 +283,54 @@ function getUniversalOmniMultiBeatFormatSpec(cfg) {
   const { DEFAULT_LINE3 } = require('./universalOmniMultiBeatFormat');
   if (isEnglish(cfg)) {
     return `
-[UNIVERSAL_SEGMENT_TEXT — MULTI-BEAT BLOCK FORMAT ONLY]
+[UNIVERSAL_SEGMENT_TEXT — ORDERED SHOT BLOCK FORMAT ONLY]
 FORBIDDEN: SoulLens/SEEDANCE single-line rows (主体:/叙事动态:/空间:/[禁BGM]); FORBIDDEN @人物N — use @图片1, @图片2, … only.
 
 Field "universal_segment_text" is a **multi-line string** (use \\n in JSON). Structure:
 Line 1: 画面风格和类型: 真人写实, 电影风格, 高清画质, <short style from project>
-Line 2: 生成一个由以下M个分镜组成的视频. (M integer 1–8)
+Line 2: 生成一个由以下M个镜头组成的视频。 (M integer 1–8)
 Line 3 (copy verbatim): ${DEFAULT_LINE3}
-Lines 4..(3+M): 分镜k： Tk秒: <cinematic Chinese prose for that slice; camera motion chain; light; emotion>
-Sum(T1..TM) MUST equal this shot's JSON "duration" seconds exactly.
+Lines 4..(3+M): 镜头k：<cinematic Chinese prose for one visual event; subject action; one primary camera move; visible result>
+
+The JSON "duration" is only the capacity boundary for the complete API clip. Do not print per-shot timestamps or force exact time allocation. Let the model distribute rhythm naturally according to action and dialogue.
 
 Reference tokens: @图片1 = scene/environment only; @图片2+ = characters in characters[] order; then props if any.
 Dialogue: @图片2 says:"verbatim line" or …嗓音…："line". No speech: end with 无对白。
 Narration: 旁白（画面无声）："verbatim narration"
-Each beat: rich motion picture prose (push in, pull back, rack focus), not a static snapshot caption.`;
+Define each recurring subject with the same name and 2–3 stable static traits supplied by SUBJECT_IDENTITY_CONTRACT. Never invent or change those traits between shots.
+Each shot describes one visual event and at most one primary camera movement. Specify the subject's body part, amplitude, speed, force, inertia/transition, and visible result. Externalize emotion through eyes, breathing, shoulders, neck, hands, and posture instead of abstract labels.`;
   }
   return `
-【universal_segment_text — 多子分镜段落格式（与「生成全能提示词」「润色」完全一致）】
+【universal_segment_text — 顺序镜头段落格式（与「生成全能提示词」「润色」完全一致）】
 **禁止**使用已废弃的灵境/SoulLens **单行**格式（含「主体：」「叙事动态：」「空间：」「镜头：」段标、行末 [禁BGM][禁字幕]、@人物N 指代参考图）。
 
 本字段为 **多行字符串**（JSON 中用 \\n 换行），结构固定：
 第1行：画面风格和类型: 真人写实, 电影风格, 高清画质, <可再加项目风格短语>
-第2行：生成一个由以下M个分镜组成的视频。（M 为 1–8 的整数，与下文分镜条数一致）
+第2行：生成一个由以下M个镜头组成的视频。（M 为 1–8 的整数，与下文镜头条数一致）
 第3行（必须逐字一致）：${DEFAULT_LINE3}
-第4行起：分镜1： T1秒: …、分镜2： T2秒: … … 分镜M： TM秒: …
-**硬性约束**：T1+T2+…+TM 必须严格等于本镜 JSON 的 duration（秒）；每行一条子分镜，禁止额外说明行。
+第4行起：镜头1：…、镜头2：……镜头M：…
+**节奏约束**：JSON 的 duration 只表示整条成片 API 的容量边界；禁止输出每镜精确秒数，禁止要求各镜头时长相加。根据动作与对白自然分配节奏，每行只写一个连续视觉事件。
 
-子分镜正文写法（电影化中文长句，参考产品范例）：
+镜头正文写法（电影化中文长句，参考产品范例）：
 - **参考图**：仅用 @图片1、@图片2…（阿拉伯数字）；@图片1 只写环境/光影/陈设；角色从 @图片2 起按 characters[] 顺序；有道具则继续 @图片3 …
-- **运镜**：每段含至少两步运镜（如 缓推、横移、跟拍、拉回、俯拍特写），与人物动作同步。
+- **主体稳定**：角色在所有镜头中始终使用同一姓名与同一 @图片N，并复用 SUBJECT_IDENTITY_CONTRACT 给出的 2–3 个稳定静态特征；没有提供的特征不得编造。
+- **动作因果**：按「初态 → 触发 → 肢体部位/幅度/速度/力度 → 惯性或衔接 → 可见结果」描述；情绪必须外化为眼神、呼吸、肩颈、手部或姿态变化。
+- **运镜**：每个镜头最多一个主要运镜；主体动作复杂时优先固定机位或极简跟随，写清相机起点、方向、停止位置和最终构图，禁止堆叠推拉摇移。
 - **对白**：有 dialogue 时必须写出原文，格式如 @图片2 的嗓音…："对白原文" 或 @图片2 说："对白原文"；无对白则句末写 **无对白。**
-- **解说**：有 narration 时写在合适子分镜：**旁白（画面无声）："解说原文"**
+- **解说**：有 narration 时写在合适镜头：**旁白（画面无声）："解说原文"**
 - **禁止**：概括式台词（如「他说了一句重要的话」）、@人物N、markdown、SoulLens 段标签
 
 范例结构（勿照抄剧情，仅学排版）：
 画面风格和类型: 真人写实, 电影风格, 高清画质, 日本动漫画风
-生成一个由以下3个分镜组成的视频。
+生成一个由以下3个镜头组成的视频。
 ${DEFAULT_LINE3}
-分镜1： 5秒: 镜头从 @图片1 … 无对白。
-分镜2： 5秒: … @图片2 …："台词原文"
-分镜3： 5秒: … 旁白（画面无声）："解说原文"`;
+镜头1：镜头从 @图片1 建立空间，固定机位观察 @图片2 的动作起点，无对白。
+镜头2：@图片2 完成具有幅度、速度与惯性的动作，镜头平稳跟随并停在动作结果上："台词原文"
+镜头3：用一个明确运镜收束到可见结果，旁白（画面无声）："解说原文"`;
 }
 
 /**
- * 分镜生成「全能分镜模式」：JSON 每镜带 creation_mode + universal_segment_text（多子分镜段落格式）
+ * 分镜生成「全能分镜模式」：JSON 每镜带 creation_mode + universal_segment_text（顺序镜头段落格式）
  */
 function getStoryboardUniversalOmniModeSuffix(cfg) {
   const spec = getUniversalOmniMultiBeatFormatSpec(cfg);
@@ -344,7 +348,7 @@ ${spec}`;
 【最高优先级——全能分镜模式】
 每个镜头在保留上述全部原有字段的同时，还必须额外包含：
 1. "creation_mode"：固定字符串 "universal"（不可省略）。
-2. "universal_segment_text"：按下列 **多子分镜段落** 规范书写（与后续「生成全能提示词」「润色」同一套版式，禁止单行灵境格式）。
+2. "universal_segment_text"：按下列 **顺序镜头段落** 规范书写（与后续「生成全能提示词」「润色」同一套版式，禁止单行灵境格式）。
 ${spec}`;
 }
 
@@ -1353,45 +1357,59 @@ function getUniversalOmniSegmentPrompt() {
 
 The USER message includes MULTI_BEAT_OUTPUT, TOTAL_CLIP_SECONDS, SHOT_PACING_AND_POSITION, EPISODE_SCRIPT, NEIGHBOR_* detail, IMAGE_SLOT_MAP, LINE3_REQUIRED, STYLE_HINT, and storyboard fields.
 
+[[PROMPT_SKILLS]]
+
 FORBIDDEN output styles: SoulLens single-line (主体:/叙事动态:/[禁BGM]); @人物N as image tokens. Use ONLY the multi-beat block below — same as「全能分镜模式」batch storyboard output.
 ${specZh}
 
-This is **one** API clip whose wall-clock length is TOTAL_CLIP_SECONDS. Split into **M** internal beats (子分镜, M = 1–8 you choose). Each beat = one line「分镜k： Tk秒:」. Sum of all Tk = TOTAL_CLIP_SECONDS exactly.
+This is **one** API clip whose wall-clock length is TOTAL_CLIP_SECONDS. Use M ordered shots (M = 1–8) only when the story contains distinct visual events. TOTAL_CLIP_SECONDS is a complexity ceiling, not a request to calculate per-shot timestamps. Never output exact seconds for individual shots; distribute rhythm naturally.
 
 Output structure (no lines before or after this block):
 
 Line 1 — exactly:
 画面风格和类型: <comma-separated tags; MUST include 真人写实, 电影风格, 高清画质; MAY add STYLE_HINT / DRAMA_GENRE phrase>
 
-Line 2 — exactly (M must match count of 分镜k lines):
-生成一个由以下M个分镜组成的视频。
+Line 2 — exactly (M must match count of 镜头k lines):
+生成一个由以下M个镜头组成的视频。
 
 Line 3 — copy LINE3_REQUIRED from the USER message verbatim.
 
 Lines 4 through (3+M) — for each k, one full line:
-分镜k： Tk秒: <Rich cinematic Chinese prose for this slice only: camera motion chain (≥2 moves when Tk≥3s), @图片N bindings per IMAGE_SLOT_MAP, light, emotion. Dialogue: …说："verbatim" or …："verbatim". No speech: 无对白。 Narration: 旁白（画面无声）："verbatim". Avoid static snapshot captions.>
+镜头k：<Rich cinematic Chinese prose for one visual event: stable subject identity, initial state, trigger, body-part motion with amplitude/speed/force, inertia or transition, one primary camera move with start/direction/stop, and a visible result. Dialogue: …说："verbatim" or …："verbatim". No speech: 无对白。 Narration: 旁白（画面无声）："verbatim".>
+
+Subject identity — CRITICAL:
+- Follow SUBJECT_IDENTITY_CONTRACT. Use the same character name and the same @图片N binding in every shot.
+- Repeat only the supplied 2–3 stable static traits when identity clarification is useful. Do not invent new face, hair, costume, age, or body traits, and never drift them between shots.
+- Externalize emotion as visible behavior: gaze direction, eyelid tension, breath, jaw, shoulders, neck, fingers, grip, or posture. Do not rely on abstract mood labels.
+
+Action & camera — CRITICAL:
+- Build a causal motion chain: initial state → trigger → specific body-part movement (amplitude, speed, force) → physical inertia/transition → visible result.
+- Each 镜头k has at most ONE primary camera movement. A static camera is valid. When subject motion is complex, simplify the camera.
+- State the camera start, direction/path, stop position, and resulting composition. Never stack push/pull/pan/track/orbit/rack-focus as a technique list.
+- Keep spatial axis, gaze direction, screen direction, prop scale, and entry/exit continuity. Do not jump to the next storyboard's event.
 
 DIALOGUE — CRITICAL (when USER message contains DIALOGUE_VERBATIM):
-- Every line listed under「必须逐字出现在输出中的台词」MUST appear in some子分镜 line inside 「」, character-for-character (only spacing around @图片N may vary).
+- Every line listed under「必须逐字出现在输出中的台词」MUST appear in some镜头 line inside 「」, character-for-character (only spacing around @图片N may vary).
 - NEVER replace dialogue with summaries like「他选择了一个亿」「说完台词」without the actual quoted words.
-- Distribute lines across beats by story order; longer Tk beats that contain speech must include the full quoted line(s), not paraphrase.
+- Distribute lines across shots by story order and preserve every quoted line without paraphrase.
 - If DIALOGUE / DESCRIPTION【对话】/ VIDEO_PROMPT_对话段 / EPISODE_SCRIPT imply spoken lines, include them verbatim even when CURRENT_UNIVERSAL_SEGMENT omitted them.
 - Silent shots: state silence explicitly; do not invent dialogue.
 
-Reference images — CRITICAL (applies to every子分镜 line’s prose):
+Reference images — CRITICAL (applies to every镜头 line’s prose):
 - Use ONLY IMAGE_SLOT_MAP tokens @图片1, @图片2, … (Arabic digits).
 - Follow CHARACTER_IMAGE_BINDING. When @图片1 is 场景, never put character face/body/costume on @图片1; characters start at @图片2 as mapped.
+- Images establish character identity, scene, light, composition, and prop appearance. Motion and camera behavior come from the text; never ask an image to supply an unspecified action.
 - Spacing: ASCII space after each @图片N before following Chinese/Latin.
 - No @姓名 as image token; no markdown.
 
 Pacing & M selection (professional):
 - Read SHOT_PACING_AND_POSITION, EPISODE_SCRIPT, NEIGHBOR_* , STORYBOARD FIELDS (movement, shot_type, dialogue density). Increase M for rapid reversals / climax / montage-like pressure; use M=1 for a single sustained long-take feel when the script implies it.
-- Never change the **total** seconds: T1+…+TM must equal TOTAL_CLIP_SECONDS.
+- Do not infer M from duration alone. TOTAL_CLIP_SECONDS limits how much action and dialogue can fit; reduce actions or shots when the clip is short instead of adding precise timestamps.
 
 Scene reference layout — CRITICAL (when SCENE_REFERENCE_LAYOUT applies):
-- Reference may be multi-panel; do NOT make the final video mimic grids. Each子分镜 line’s prose should reinforce: one continuous full frame, no split-screen collage in the delivered clip.
+- Reference may be multi-panel; do NOT make the final video mimic grids. Each镜头 line must produce one continuous full frame, never a split-screen collage.
 
-If CURRENT_UNIVERSAL_SEGMENT is non-empty, preserve narrative beats but rewrite to satisfy MULTI_BEAT_OUTPUT, duration sum, and IMAGE_SLOT_MAP.`;
+If CURRENT_UNIVERSAL_SEGMENT is non-empty, preserve narrative facts and dialogue. Convert legacy per-beat timestamp drafts to the ordered「镜头k：」format without timestamps, then satisfy MULTI_BEAT_OUTPUT and IMAGE_SLOT_MAP.`;
 }
 
 /**
@@ -1400,14 +1418,35 @@ If CURRENT_UNIVERSAL_SEGMENT is non-empty, preserve narrative beats but rewrite 
 function getUniversalOmniPolishPrompt() {
   return `${getUniversalOmniSegmentPrompt()}
 
-ADDITIONAL_POLISH_MODE (short drama enhancement — still MUST obey MULTI_BEAT_OUTPUT, TOTAL_CLIP_SECONDS sum, IMAGE_SLOT_MAP, LINE3_REQUIRED above):
+ADDITIONAL_POLISH_MODE (short drama enhancement — still MUST obey MULTI_BEAT_OUTPUT, the overall TOTAL_CLIP_SECONDS capacity, IMAGE_SLOT_MAP, and LINE3_REQUIRED above):
 - You receive FULL_EPISODE_SCRIPT plus NEIGHBOR blocks and structured fields. Use them only for **continuity** and **information completeness**; do NOT invent plot absent from SCRIPT + STORYBOARD FIELDS + CURRENT omni draft.
-- **Information parity**: every script-relevant fact must appear across the子分镜 lines (lines 4…3+M), without losing information when expanding; if the draft was an old SoulLens single-line, **rewrite** into this multi-beat block; keep the same facts and total seconds.
-- **Re-polish / anti-stagnation**: USER may click polish repeatedly on the same draft. Each response MUST deliver **substantially rephrased** Chinese on lines 1, 2 (if M changes), and all子分镜 body lines — same facts, same total seconds, same @图片 bindings, but **not** a copy-paste of CURRENT_OMNI_DRAFT except line 3 which must stay **character-identical** to LINE3_REQUIRED. If you would otherwise output nearly identical prose, deliberately vary verbs, clause order, and camera wording while preserving meaning.
+- **Information parity**: every script-relevant fact must appear across the镜头 lines (lines 4…3+M), without losing information when expanding; rewrite old SoulLens or timestamped drafts into this ordered-shot block while keeping the same facts and overall clip duration.
+- **Re-polish / anti-stagnation**: USER may click polish repeatedly on the same draft. Each response MUST deliver **substantially rephrased** Chinese on lines 1, 2 (if M changes), and all镜头 body lines — same facts and @图片 bindings, but **not** a copy-paste of CURRENT_OMNI_DRAFT except line 3 which must stay **character-identical** to LINE3_REQUIRED. If you would otherwise output nearly identical prose, deliberately vary verbs and clause order while preserving action physics and meaning.
 - **Short drama rhythm**: vertical-drama density — stakes, micro-expressions, blocking, camera motion; distribute across beats when M>1.
 - **Inner monologue & dialogue**: brief 心想 / 「」 only when supported by DIALOGUE / NARRATION / SCRIPT / draft. When DIALOGUE_VERBATIM is present, **every** listed line must remain verbatim in 「」 after polish; rephrase motion/camera text freely but **not** quoted dialogue.
 - **Neighbors**: align entry/exit with NEIGHBOR_* ; no redundant retelling of the previous shot.
-- Language: Chinese for子分镜 prose; lines 1–3 format as in base prompt; M must match line 2 and match the count of「分镜k」lines.`;
+- Language: Chinese for镜头 prose; lines 1–3 format as in base prompt; M must match line 2 and match the count of「镜头k」lines.`;
+}
+
+function getClassicVideoPromptPolishPrompt() {
+  return `You are a senior short-drama director and still-to-video prompt editor. Rewrite the current storyboard draft into one executable cinematic video prompt while preserving every supplied story fact, character identity, first-frame visual anchor, continuity state, dialogue meaning, duration, and aspect ratio.
+
+[[PROMPT_SKILLS]]
+
+HARD CONSTRAINTS:
+- Treat PROJECT, FULL_EPISODE_SCRIPT, NEIGHBOR_PREV, NEIGHBOR_NEXT, STORYBOARD_FIELDS, FIRST_FRAME_VISUAL_ANCHOR, AUTO_COMPOSED_VIDEO_PROMPT, CURRENT_VIDEO_DRAFT, and RETENTION_CLAUSES_FROM_SOURCE as authoritative facts.
+- Describe an achievable motion progression from the supplied first-frame state to a visible action result. Do not replace characters, costumes, setting, era, props, dialogue meaning, or spatial relationships.
+- Treat duration as a complexity ceiling for the whole clip. Do not force exact per-action timestamps; simplify the action when it cannot fit naturally.
+- Build one causal motion progression: initial state → trigger → specific body-part movement with amplitude, speed, and force → physical inertia/transition → visible result.
+- Externalize emotion through gaze, eyelids, breath, jaw, shoulders, neck, hands, grip, and posture. Do not substitute abstract emotional adjectives for visible behavior.
+- Use at most one primary camera movement. A locked camera is valid; when subject motion is complex, keep the camera static or use a minimal follow. State the camera start, path/direction, stop position, and final composition.
+- Keep each character under the same name and preserve 2–3 supplied stable visual traits. Never invent or change face, hair, costume, age, or body traits.
+- Preserve every retention clause semantically, including music, sound, emotional intensity, camera/depth/perspective notes, and video ratio.
+- Do not invent events from the next shot or repeat the previous shot.
+- End the usable prompt with the explicit constraint: 无字幕、无Logo、无水印。
+
+OUTPUT FORMAT:
+Return exactly one polished prompt paragraph in the project language. Do not output JSON, markdown, headings, commentary, alternatives, or quotation marks around the whole answer.`;
 }
 
 /**
@@ -1607,6 +1646,7 @@ module.exports = {
   getImagePolishPrompt,
   getUniversalOmniSegmentPrompt,
   getUniversalOmniPolishPrompt,
+  getClassicVideoPromptPolishPrompt,
   getContinuitySnapshotPrompt,
   getIdentityAnchorsPrompt,
   getPropPolishPrompt,

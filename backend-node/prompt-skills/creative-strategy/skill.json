@@ -1,0 +1,16 @@
+{
+  "id": "creative-strategy",
+  "name": "短视频创意策略",
+  "version": "2.0.0",
+  "description": "核心概念、开场 Hook、反转、满足感、信息密度、观看动机和创意模式。",
+  "license": "MIT",
+  "author": "Seedance Prompt Skill Contributors; adapted by LocalMiniDrama",
+  "homepage": "https://github.com/MapleShaw/seedance2.0-prompt-skill",
+  "stages": ["story", "storyboard", "video_prompt"],
+  "priority": 65,
+  "stage_references": {
+    "story": ["references/guide.md", "references/creative-strategy.md", "references/pattern-examples.md"],
+    "storyboard": ["references/guide.md", "references/creative-strategy.md", "references/pattern-examples.md"],
+    "video_prompt": ["references/guide.md", "references/creative-strategy.md", "references/pattern-examples.md"]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "visual-aesthetics",
+  "name": "视觉美学设计",
+  "version": "2.0.0",
+  "description": "构图几何、真实光影、材质细节、色彩对比、关键帧与参考图驱动运动设计。",
+  "license": "MIT",
+  "author": "Seedance Prompt Skill Contributors; adapted by LocalMiniDrama",
+  "homepage": "https://github.com/MapleShaw/seedance2.0-prompt-skill",
+  "stages": ["storyboard", "image_prompt", "frame_prompt", "video_prompt"],
+  "priority": 70,
+  "stage_references": {
+    "storyboard": ["references/guide.md", "references/aesthetic-constraints.md", "references/visual-vocabulary.md"],
+    "image_prompt": ["references/guide.md", "references/aesthetic-constraints.md", "references/image-generation.md", "references/visual-vocabulary.md"],
+    "frame_prompt": ["references/guide.md", "references/aesthetic-constraints.md", "references/image-generation.md", "references/visual-vocabulary.md"],
+    "video_prompt": ["references/guide.md", "references/image-driven-motion.md", "references/aesthetic-constraints.md", "references/visual-vocabulary.md"]
+  }
+}

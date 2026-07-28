@@ -1,0 +1,16 @@
+{
+  "id": "long-video-planning",
+  "name": "长视频连续性规划",
+  "version": "2.0.0",
+  "description": "多片段叙事骨架、风格/角色/场景锁定、桥接镜头、尾帧延续和生产流程。",
+  "license": "MIT",
+  "author": "Seedance Prompt Skill Contributors; adapted by LocalMiniDrama",
+  "homepage": "https://github.com/MapleShaw/seedance2.0-prompt-skill",
+  "stages": ["story", "storyboard", "video_prompt"],
+  "priority": 60,
+  "stage_references": {
+    "story": ["references/guide.md", "references/long-video-strategy.md", "references/production-pipeline.md"],
+    "storyboard": ["references/guide.md", "references/long-video-strategy.md", "references/production-pipeline.md"],
+    "video_prompt": ["references/guide.md", "references/long-video-strategy.md", "references/production-pipeline.md"]
+  }
+}

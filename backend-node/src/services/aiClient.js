@@ -3,6 +3,7 @@ const aiConfigService = require('./aiConfigService');
 const { applyDeepSeekChatOptions } = require('./deepseekConfig');
 const https = require('https');
 const http = require('http');
+const promptSkillService = require('./promptSkillService');
 
 /**
  * 非流式 POST，发送 JSON body，等待完整 HTTP 响应后返回。
@@ -255,6 +256,16 @@ function getConfigFromModelMap(db, sceneKey) {
 }
 
 async function generateText(db, log, serviceType, userPrompt, systemPrompt, options = {}) {
+  if (options.prompt_skill_insert_before_output) {
+    systemPrompt = promptSkillService.insertSkillMarkerBeforeOutput(systemPrompt);
+  }
+  const skillEnhanced = promptSkillService.enhanceSystemPrompt(db, systemPrompt, options.prompt_skill_stage, {
+    skill_ids: options.prompt_skill_ids,
+    drama_id: options.prompt_skill_drama_id,
+    storyboard_id: options.prompt_skill_storyboard_id,
+  });
+  systemPrompt = skillEnhanced.prompt;
+  if (options.prompt_skill_stage) log.info('[PromptSkill] composition', skillEnhanced.audit);
   const { model: preferredModel, temperature = 0.7, json_mode = false, min_max_tokens = null, streamCallback = null, scene_key = null } = options;
 
   // F2: 若传入 scene_key，优先从 ai_model_map 查找对应的模型路由配置
@@ -362,6 +373,16 @@ async function generateText(db, log, serviceType, userPrompt, systemPrompt, opti
  * @param {(delta: string) => void} onDelta 仅增量片段（UTF-8 字符串）
  */
 async function streamGenerateText(db, log, serviceType, userPrompt, systemPrompt, options = {}, onDelta) {
+  if (options.prompt_skill_insert_before_output) {
+    systemPrompt = promptSkillService.insertSkillMarkerBeforeOutput(systemPrompt);
+  }
+  const skillEnhanced = promptSkillService.enhanceSystemPrompt(db, systemPrompt, options.prompt_skill_stage, {
+    skill_ids: options.prompt_skill_ids,
+    drama_id: options.prompt_skill_drama_id,
+    storyboard_id: options.prompt_skill_storyboard_id,
+  });
+  systemPrompt = skillEnhanced.prompt;
+  if (options.prompt_skill_stage) log.info('[PromptSkill] composition', skillEnhanced.audit);
   const { model: preferredModel, temperature = 0.7, json_mode = false, min_max_tokens = null, scene_key = null } = options;
   let config = null;
   let routedModelOverride = null;

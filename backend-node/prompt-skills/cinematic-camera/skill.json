@@ -1,0 +1,16 @@
+{
+  "id": "cinematic-camera",
+  "name": "电影镜头语言",
+  "version": "2.0.0",
+  "description": "相机四维编码、焦段、机位、运镜链、情绪映射、冲突检测与防漂移。",
+  "license": "MIT",
+  "author": "Seedance Prompt Skill Contributors; adapted by LocalMiniDrama",
+  "homepage": "https://github.com/MapleShaw/seedance2.0-prompt-skill",
+  "stages": ["storyboard", "frame_prompt", "video_prompt"],
+  "priority": 90,
+  "stage_references": {
+    "storyboard": ["references/guide.md", "references/camera-codec.md", "references/cinematic-vocabulary.md"],
+    "frame_prompt": ["references/guide.md", "references/camera-codec.md", "references/cinematic-vocabulary.md"],
+    "video_prompt": ["references/guide.md", "references/camera-codec.md", "references/cinematic-vocabulary.md"]
+  }
+}

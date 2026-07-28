@@ -270,6 +270,7 @@ function generateStoryboard(db, log) {
         aspect_ratio: body.aspect_ratio,
         include_narration: body.include_narration,
         universal_omni_storyboard: body.universal_omni_storyboard,
+        prompt_skill_ids: Array.isArray(body.prompt_skill_ids) ? body.prompt_skill_ids : undefined,
       });
       response.success(res, resData);
     } catch (err) {

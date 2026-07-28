@@ -5,7 +5,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const src = path.join(repoRoot, 'backend-node');
 const dest = path.join(__dirname, '..', 'backend-app');
 
-const dirsToCopy = ['src', 'configs', 'scripts', 'migrations'];
+const dirsToCopy = ['src', 'configs', 'scripts', 'migrations', 'prompt-skills'];
 
 if (!fs.existsSync(src)) {
   console.error('backend-node not found at', src);
@@ -36,4 +36,4 @@ if (fs.existsSync(initialMigrations)) {
   console.log('Merged initial-migrations -> desktop/backend-app/migrations');
 }
 
-console.log('Copied backend-node (src, configs, scripts, migrations) -> desktop/backend-app');
+console.log('Copied backend-node (src, configs, scripts, migrations, prompt-skills) -> desktop/backend-app');

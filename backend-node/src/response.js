@@ -45,6 +45,10 @@ function forbidden(res, message) {
   error(res, 403, 'FORBIDDEN', message);
 }
 
+function conflict(res, message) {
+  error(res, 409, 'CONFLICT', message);
+}
+
 function internalError(res, message) {
   error(res, 500, 'INTERNAL_ERROR', message || '服务器错误');
 }
@@ -57,5 +61,6 @@ module.exports = {
   badRequest,
   notFound,
   forbidden,
+  conflict,
   internalError,
 };

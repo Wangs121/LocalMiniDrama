@@ -7,6 +7,10 @@ const safeJson = require('../utils/safeJson');
 const { safeParseAIJSON, extractJsonCandidate, repairTruncatedJsonArray, extractFirstArray } = safeJson;
 const loadConfig = require('../config').loadConfig;
 const angleService = require('./angleService');
+const {
+  buildFallbackUniversalMultiBeatText,
+  normalizeUniversalSegmentTextNewlines,
+} = require('./universalOmniMultiBeatFormat');
 
 /**
  * 分镜专用 generateText 包装：
@@ -61,7 +65,7 @@ function isMaxTokensParamError(errMsg) {
 }
 
 async function generateTextForStoryboard(db, log, userPrompt, systemPrompt, options = {}) {
-  const { model, streamCallback, temperature = 0.7 } = options;
+  const { model, streamCallback, temperature = 0.7, dramaId, skillIds } = options;
 
   // 第一次尝试：带 max_tokens:16384
   log.info('Storyboard generateText attempt 1', { model: model || '(default)', max_tokens: DEFAULT_STORYBOARD_MAX_TOKENS });
@@ -69,6 +73,10 @@ async function generateTextForStoryboard(db, log, userPrompt, systemPrompt, opti
     const text = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
       scene_key: 'storyboard_extraction',
       model: model || undefined,
+      prompt_skill_stage: 'storyboard',
+      prompt_skill_insert_before_output: true,
+      prompt_skill_drama_id: dramaId,
+      prompt_skill_ids: skillIds,
       temperature,
       max_tokens: DEFAULT_STORYBOARD_MAX_TOKENS,
       streamCallback,
@@ -85,6 +93,10 @@ async function generateTextForStoryboard(db, log, userPrompt, systemPrompt, opti
       const text = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
         scene_key: 'storyboard_extraction',
         model: model || undefined,
+        prompt_skill_stage: 'storyboard',
+        prompt_skill_insert_before_output: true,
+        prompt_skill_drama_id: dramaId,
+        prompt_skill_ids: skillIds,
         temperature,
         streamCallback,
       });
@@ -140,87 +152,6 @@ function logDebugStoryboardPrompts(log, tag, userPrompt, systemPrompt) {
   for (let i = 0; i < up.length; i += _SB_PROMPT_LOG_CHUNK) {
     log.info(`[StoryboardPrompt:${tag}] user_part_${Math.floor(i / _SB_PROMPT_LOG_CHUNK) + 1}\n${up.slice(i, i + _SB_PROMPT_LOG_CHUNK)}`);
   }
-}
-
-/** 将 lighting_style 枚举转为中文布光提示（兜底用） */
-function lightingStyleHintZh(code) {
-  const m = {
-    natural: '自然窗光或环境散射光',
-    front: '正面柔光面部受光均匀',
-    side: '侧光约45°勾勒轮廓',
-    backlit: '逆光轮廓光发丝边缘发亮',
-    top: '顶光压暗眼窝',
-    under: '底光或脚光非常规氛围',
-    soft: '软光低反差过渡柔和',
-    dramatic: '戏剧高反差主辅分明',
-    golden_hour: '金色时刻暖斜阳',
-    blue_hour: '蓝调时刻冷环境光',
-    night: '夜景人工点光源',
-    neon: '霓虹混合色温',
-  };
-  return m[String(code || '').trim()] || '主光方向明确侧光或窗光';
-}
-
-/** 按时长与已有运镜字段拼灵境式「运镜链」（至少两步，强调摄影机在动） */
-function buildCameraMotionChain(movement, shotType, durationSec) {
-  const dur = Math.max(1, Number(durationSec) || 5);
-  const mv = String(movement || '').trim();
-  const st = String(shotType || '').trim();
-  const parts = [];
-  if (dur >= 12) {
-    parts.push('定镜约1秒建立空间');
-    if (/跟|追随|尾随/.test(mv)) parts.push('侧后方跟拍主体位移');
-    else if (/摇/.test(mv)) parts.push(`${mv || '轻摇'}拓展画幅信息`);
-    else parts.push('缓推轨贴近动作核心');
-    parts.push('横移从前景遮挡或门框一侧滑出拓宽视野带出纵深与环境细节');
-  } else if (dur >= 8) {
-    parts.push('定镜');
-    parts.push(mv && !/^固定|^定镜/.test(mv) ? mv : '缓推轨由远及近');
-    parts.push('微横移或轻摇让背景纵深与环境细节可读');
-  } else if (dur >= 5) {
-    parts.push('定镜起幅');
-    parts.push(mv || '缓推轨或短跟拍强化动线');
-  } else {
-    parts.push(mv || '短跟拍或微推');
-  }
-  if ((st.includes('远') || st.includes('全景')) && !parts.some((p) => /推|移|跟|摇/.test(p))) {
-    parts.push('缓推轨向事件中心');
-  }
-  const chain = [...new Set(parts)].filter(Boolean).join('，');
-  return chain || '定镜，缓推轨';
-}
-
-/** 全能分镜：模型未返回 universal_segment_text 时的灵境式高密度单行（视频时间轴 + 运镜链） */
-function buildFallbackUniversalSeedanceLine(sb, d, styleHint) {
-  const act = (d.action || '').replace(/\s+/g, ' ').trim().slice(0, 220);
-  const res = (d.result || '').replace(/\s+/g, ' ').trim().slice(0, 120);
-  const emo = (d.emotion || sb.emotion || '').replace(/\s+/g, ' ').trim().slice(0, 24);
-  const atm = (sb.atmosphere || '').replace(/\s+/g, ' ').trim().slice(0, 100);
-  const shotBits = [d.shotType, d.angle].filter(Boolean).join('，').trim();
-  const loc = [sb.location, sb.time].filter(Boolean).join('，').trim() || '叙事空间';
-  const dur = Math.max(1, Number(d.durationSec) || normalizeDuration(sb.duration) || 5);
-  const lightZh = lightingStyleHintZh(d.lightingStyle);
-  const dof = d.depthOfField === 'extreme_shallow' ? '浅景深前景虚化明显' : d.depthOfField === 'shallow' ? '浅景深背景柔化' : d.depthOfField === 'deep' ? '深焦前后景均清晰' : d.depthOfField === 'medium' ? '景深适中' : '景深随景别可感';
-  const shotNum = Math.max(1, Number(d.shotNumber) || 1);
-  const link = shotNum <= 1 ? '开篇情绪奠基' : '延续上一镜动势与视线';
-  const motionCore =
-    act ||
-    '在镜内时长里完成一段可感知的动作阶段变化，含走位或身体重心的转移，避免单姿势摆拍';
-  const emoParen = emo ? `（${emo}）` : '（专注投入）';
-  const fg = atm ? `${atm.slice(0, 42)}与主体相关的虚化层次` : '与动作相关的近景细节或桌面器物';
-  const mg = act ? '主体动作与表情核心区' : '主体占据画面叙事中心';
-  const bg = loc ? `${loc}的环境延展与氛围层次` : '环境纵深与空间气氛';
-  const lightBlock = `[${lightZh}；结合${loc}，建议色温具象化如4500K-5600K区间择一；明暗比约2:1至3:1；${dof}]`;
-  const camChain = buildCameraMotionChain(d.movement, d.shotType, dur);
-  const narrDyn = `约${dur}秒内——在${loc}，@人物1${act ? `先后：${act}` : '持续推进戏内动作'}，${res ? `阶段收束为：${res}` : '动作与视线随时间有阶段推进'}；镜头以「${camChain}」配合人物动线，读出空间纵深与时间流逝`;
-  const lensBlock = `运镜链：${camChain}；景别机位：${shotBits || '中景，平视'}，三分法或对角线择一（结尾动势：[${res || '视线或身体动线指向下一个节拍，动势渐收可衔接下镜'}]）`;
-  const sfx = `环境层-[与${loc}一致的环境声底与远处细节] 动作层-[与动作同步的物理接触声] 情绪层-[无旋律仅以空间混响与材质细微声烘托情绪张力]`;
-  const styleTail = (styleHint && String(styleHint).trim()) || '电影感叙事光色';
-  const dia = (d.dialogue || '').trim().replace(/"/g, "'");
-  let line = `主体：@人物1${emoParen}[朝向：依轴线面向戏中对象或画左/画右择一并保持统一] 正在 ${motionCore}（与上镜衔接：${link}） 叙事动态：${narrDyn} 空间：前景-[${fg}] 中景-[${mg}] 背景-[${bg}] 光影：${lightBlock} 镜头：${lensBlock}`;
-  if (dia) line += ` 台词：第1秒 @人物1："${dia.slice(0, 120)}"`;
-  line += ` 音效：${sfx} ${styleTail} [禁BGM][禁字幕]`;
-  return line.replace(/\r?\n/g, ' ');
 }
 
 function getStoryboardsForEpisode(db, episodeId) {
@@ -423,10 +354,10 @@ function deriveStoryboardFieldsFromAi(sb, style, videoRatio, opts = {}) {
   const propIds = Array.isArray(sb.props) ? sb.props.map(Number).filter(Number.isFinite) : [];
   let universalSegmentText = '';
   if (sb.universal_segment_text != null && String(sb.universal_segment_text).trim()) {
-    universalSegmentText = String(sb.universal_segment_text).trim().replace(/\r?\n/g, ' ');
+    universalSegmentText = normalizeUniversalSegmentTextNewlines(sb.universal_segment_text);
   }
   if (universalOmni && !universalSegmentText) {
-    universalSegmentText = buildFallbackUniversalSeedanceLine(
+    universalSegmentText = buildFallbackUniversalMultiBeatText(
       sb,
       {
         shotNumber,
@@ -798,7 +729,7 @@ function buildContinuationPrompt(originalUserPrompt, alreadySaved, lastShotNum, 
     ? '\n- 每条新增分镜必须含非空字符串 narration（至少一句解说，与首次任务一致；禁止留空）'
     : '';
   const uniLine = universalOmni
-    ? '\n- 每条新增分镜必须含 creation_mode:"universal" 与非空 universal_segment_text（单行：须含「叙事动态」时间线+「镜头」运镜链至少两步如定镜/缓推轨/横移从遮挡后滑出；按 duration 秒写视频动势，禁止静帧式描写；与首轮要求一致）'
+    ? '\n- 每条新增分镜必须含 creation_mode:"universal" 与非空 universal_segment_text（多行顺序镜头格式：「镜头1：」起，不写内部精确秒数；每镜最多一个主要运镜，动作按初态→触发→肢体细节→惯性→可见结果推进；与首轮要求一致）'
     : '';
   // 全量已生成分镜摘要（每行一个，仅 shot_number + segment + title）
   const allSummary = alreadySaved.map((sb) => {
@@ -840,9 +771,11 @@ ${lastCtx}
 ${originalUserPrompt}`;
 }
 
-async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, model, style, userPrompt, systemPrompt, includeNarration, universalOmni, targetClipDurationSec = null) {
+async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, model, style, userPrompt, systemPrompt, includeNarration, universalOmni, targetClipDurationSec = null, promptSkillIds = undefined) {
   // 增量保存状态放在 try 外，catch 里可用于部分恢复
   const episodeIdNum = Number(episodeId);
+  const episodeSkillRow = db.prepare('SELECT drama_id FROM episodes WHERE id = ?').get(episodeIdNum);
+  const skillDramaId = episodeSkillRow?.drama_id || null;
   const streamSavedNums = new Set();
   const streamStyle = (style && String(style).trim()) || cfg?.style?.default_style || '';
   const streamVideoRatio = cfg?.style?.default_video_ratio || '16:9';
@@ -870,6 +803,8 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
     // {"storyboards":[...]} 或产生乱码 key，改由 extractFirstArray 统一处理任意包装格式。
     const text = await generateTextForStoryboard(db, log, userPrompt, systemPrompt, {
       model: model || undefined,
+      dramaId: skillDramaId,
+      skillIds: promptSkillIds,
       // 每积累约 400 字符触发一次增量解析，尝试提前保存已完成的分镜
       streamCallback: (accumulated) => {
         if (accumulated.length - streamThrottle < 400) return;
@@ -984,6 +919,8 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
       try {
         contText = await generateTextForStoryboard(db, log, contPrompt, systemPrompt, {
           model: model || undefined,
+          dramaId: skillDramaId,
+          skillIds: promptSkillIds,
           streamCallback: (accumulated) => {
             if (accumulated.length - streamThrottle < 400) return;
             streamThrottle = accumulated.length;
@@ -1096,7 +1033,7 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
   }
 }
 
-function generateStoryboard(db, log, episodeId, model, style, storyboardCount, videoDuration, aspectRatio, includeNarration, universalOmni) {
+function generateStoryboard(db, log, episodeId, model, style, storyboardCount, videoDuration, aspectRatio, includeNarration, universalOmni, promptSkillIds = undefined) {
   const cfg = loadConfig();
   const episode = db.prepare(
     'SELECT id, script_content, description, drama_id FROM episodes WHERE id = ? AND deleted_at IS NULL'
@@ -1310,7 +1247,8 @@ The user enabled narrator voice-over for the whole episode. Every shot object MU
       systemPrompt,
       wantNarration,
       wantUniversalOmni,
-      clipSec
+      clipSec,
+      promptSkillIds
     );
   });
 

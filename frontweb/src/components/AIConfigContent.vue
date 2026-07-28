@@ -117,6 +117,11 @@
           <PromptEditor />
         </div>
       </el-tab-pane>
+      <el-tab-pane label="创作 Skill" name="promptSkills">
+        <div class="tab-content">
+          <PromptSkills :drama-id="dramaId" />
+        </div>
+      </el-tab-pane>
       <el-tab-pane label="高级设置（业务场景）" name="sceneModelMap">
         <div class="tab-content">
           <SceneModelMap />
@@ -1100,8 +1105,11 @@ import { Plus, MagicStick, QuestionFilled, Download, Upload, Delete, ChatDotRoun
 import { aiAPI } from '@/api/ai'
 import { generationSettingsAPI } from '@/api/prompts'
 import PromptEditor from '@/components/PromptEditor.vue'
+import PromptSkills from '@/components/PromptSkills.vue'
 import SceneModelMap from '@/components/SceneModelMap.vue'
 import Sd2AssetManagement from '@/components/Sd2AssetManagement.vue'
+
+defineProps({ dramaId: { type: [Number, String], default: null } })
 
 const activeTab = ref('configs')
 const importFileRef = ref(null)

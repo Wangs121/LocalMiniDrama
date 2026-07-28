@@ -6,7 +6,7 @@
 
 *LocalMiniDrama · AI-powered short drama creator*
 
-[![version](https://img.shields.io/badge/version-1.2.8-blue?style=flat-square)](https://github.com/xuanyustudio/LocalMiniDrama/releases)
+[![version](https://img.shields.io/badge/version-1.2.8-blue?style=flat-square)](https://github.com/Wangs121/LocalMiniDrama/releases)
 [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square)](#-快速开始)
 [![stack](https://img.shields.io/badge/Vue3%20%2B%20Node.js%20%2B%20Electron-informational?style=flat-square)](#-项目架构)
@@ -17,7 +17,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-xuanyustudio%2FLocalMiniDrama-181717?logo=github&style=flat-square)](https://github.com/xuanyustudio/LocalMiniDrama)
 [![Gitee](https://img.shields.io/badge/Gitee-bi__shang__a%2Flocalminidrama-C71D23?logo=gitee&style=flat-square)](https://gitee.com/bi_shang_a/localminidrama)
 
-[**⬇️ 下载 Release**](https://github.com/xuanyustudio/LocalMiniDrama/releases) · [**🚀 快速开始**](#-快速开始) · [**📖 配置 AI**](docs/configuration.md) · [**🗺 画布文档**](docs/plans/2026-06-15-drama-canvas-workflow-plan.md)
+[**⬇️ 下载 Release**](https://github.com/Wangs121/LocalMiniDrama/releases) · [**🚀 快速开始**](#-快速开始) · [**📖 配置 AI**](docs/configuration.md) · [**🗺 画布文档**](docs/plans/2026-06-15-drama-canvas-workflow-plan.md)
 
 </div>
 
@@ -45,7 +45,11 @@
 - 🆕 **画布模式增强**：剧本节点、右键菜单、浮动工具栏、画布内新建/删除/整集生成
 - 🆕 **ModelArk 私有资产库**：SD2 角色认证对接火山方舟资产组，AK/SK 与 Bearer 双鉴权
 - 🔧 **图床可配置**：`upload_url` / 超时（默认 180s）/ 重试次数写入 `config.yaml`；缓存 URL 失效自动重传
-- 🔧 **提示词优化** · **分镜图片数量上限修复**
+- 🔧 **Seedance 2.0 提示词编排修复**：按官方指南改为 `镜头1 / 镜头2` 顺序描述，取消内部镜头精确分秒和多重运镜堆叠；补充主体稳定锚点、动作因果链、素材职责及无字幕/Logo/水印约束
+- 🔧 **全能分镜多行保存修复**：修复批量生成后 `universal_segment_text` 换行被压平的问题；已有旧时间戳草稿可通过「生成」或「润色」转换为新格式
+- 🔧 **分镜图片数量上限修复**
+- 🔧 **Seedance 2.0 首尾帧修复**：全能模式同时提交首帧、尾帧和多参考图，分别使用 `first_frame`、`last_frame`、`reference_image` 角色，避免视频脱离关键帧或画风漂移
+- 🆕 **通用创作 Skill 2.0**：支持安全导入 ZIP/本地目录、完整章节预览、全局启停和项目级选择；六个内置影视能力包按阶段注入约 42K–69K 字符的镜头、美学、创意、剪辑与连续性方法论，不绑定具体模型
 
 完整记录 → **[CHANGELOG.md](CHANGELOG.md)**
 
@@ -175,7 +179,7 @@
 
 ### 方式一：下载 exe（推荐）
 
-前往 **[Releases 下载页](https://github.com/xuanyustudio/LocalMiniDrama/releases)**：
+前往 **[Releases 下载页](https://github.com/Wangs121/LocalMiniDrama/releases)**：
 
 | 版本 | 说明 | 适合 |
 |------|------|------|
@@ -191,7 +195,7 @@
 > Node.js ≥ 18
 
 ```bash
-git clone https://github.com/xuanyustudio/LocalMiniDrama.git
+git clone https://github.com/Wangs121/LocalMiniDrama.git
 cd LocalMiniDrama
 
 # 后端（端口 5679）
@@ -328,6 +332,6 @@ LocalMiniDrama/
 
 **如果这个项目对你有帮助，请点 ⭐ Star —— 这是对作者最大的鼓励！**
 
-[⬇️ 立即下载](https://github.com/xuanyustudio/LocalMiniDrama/releases) · [📖 快速开始文档](docs/quickstart.md) · [🗺 画布文档](docs/plans/2026-06-15-drama-canvas-workflow-plan.md)
+[⬇️ 立即下载](https://github.com/Wangs121/LocalMiniDrama/releases) · [📖 快速开始文档](docs/quickstart.md) · [🗺 画布文档](docs/plans/2026-06-15-drama-canvas-workflow-plan.md)
 
 </div>

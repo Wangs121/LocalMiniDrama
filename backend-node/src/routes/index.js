@@ -21,6 +21,7 @@ const assetRoutes = require('./assets');
 const audioRoutes = require('./audio');
 const promptOverridesRoutes = require('./promptOverrides');
 const sceneModelMapRoutes = require('./sceneModelMap');
+const promptSkillRoutes = require('./promptSkills');
 
 function setupRouter(cfg, db, log) {
   const r = express.Router();
@@ -31,6 +32,7 @@ function setupRouter(cfg, db, log) {
   const prop = propRoutes(db, log, cfg);
   const stub = stubRoutes(db, cfg, log);
   const sceneModelMap = sceneModelMapRoutes(db, log);
+  const promptSkills = promptSkillRoutes(db);
   
   const uploadService = require('../services/uploadService');
   const charLibrary = characterLibraryRoutes(db, cfg, log);
@@ -308,6 +310,15 @@ function setupRouter(cfg, db, log) {
   r.get('/settings/prompts', promptOverrides.list);
   r.put('/settings/prompts/:key', promptOverrides.update);
   r.delete('/settings/prompts/:key', promptOverrides.reset);
+
+  // ---------- prompt skills ----------
+  r.get('/prompt-skills', promptSkills.list);
+  r.get('/prompt-skills/:id', promptSkills.get);
+  r.post('/prompt-skills/import', ...promptSkills.import);
+  r.put('/prompt-skills/:id', promptSkills.update);
+  r.delete('/prompt-skills/:id', promptSkills.delete);
+  r.get('/dramas/:drama_id/prompt-skills', promptSkills.projectGet);
+  r.put('/dramas/:drama_id/prompt-skills', promptSkills.projectUpdate);
 
   // ---------- scene model map ----------
   r.get('/scene-model-map', sceneModelMap.list);

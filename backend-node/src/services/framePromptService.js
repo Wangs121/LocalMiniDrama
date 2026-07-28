@@ -445,6 +445,9 @@ async function generateSingleFrame(db, log, cfg, sb, scene, characterNames, mode
     aiResponse = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
       model: model || undefined,
       max_tokens: 2400,
+      prompt_skill_stage: 'frame_prompt',
+      prompt_skill_insert_before_output: true,
+      prompt_skill_storyboard_id: sb?.id,
     });
   } catch (err) {
     log.warn('Frame prompt AI failed, using fallback', { error: err.message });
