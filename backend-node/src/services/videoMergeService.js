@@ -2,6 +2,8 @@ const path = require('path');
 const fs = require('fs');
 const { getFfmpegPath, getFfprobePath, hasLocalFfmpeg } = require('../utils/ffmpegPath');
 const storageLayout = require('./storageLayout');
+const { spawnSync } = require('child_process');
+const { resolveExportVideoDimensions } = require('./exportVideoResolution');
 
 function list(db, query) {
   let sql = 'FROM video_merges WHERE deleted_at IS NULL';
@@ -136,7 +138,6 @@ function runFfmpegConcat(localPaths, outputPath, log) {
       return `file '${normalized.replace(/'/g, "'\\''")}'`;
     });
     fs.writeFileSync(listFile, lines.join('\n'), 'utf8');
-    const { spawnSync } = require('child_process');
     const args = [
       '-f', 'concat',
       '-safe', '0',
@@ -158,6 +159,20 @@ function runFfmpegConcat(localPaths, outputPath, log) {
   } finally {
     try { if (fs.existsSync(listFile)) fs.unlinkSync(listFile); } catch (_) {}
   }
+}
+
+function normalizeVideoForExport(inputPath, outputPath, dimensions, log) {
+  const vf = `scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease,pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2:black`;
+  const result = spawnSync(
+    getFfmpegPath(),
+    ['-y', '-i', inputPath, '-vf', vf, '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', outputPath],
+    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+  );
+  if (result.error || result.status !== 0) {
+    log.warn('Video merge: export normalization failed', { input: inputPath, stderr: result.stderr?.slice(-500), error: result.error?.message });
+    return false;
+  }
+  return fs.existsSync(outputPath);
 }
 
 /**
@@ -190,9 +205,28 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
     return;
   }
 
+  let mergeOpts = {};
+  try {
+    mergeOpts = JSON.parse(r.merge_options || '{}');
+  } catch (_) {}
+  let exportDimensions = null;
+  if (mergeOpts.export_resolution) {
+    try {
+      exportDimensions = resolveExportVideoDimensions({
+        resolution: mergeOpts.export_resolution,
+        customLongEdge: mergeOpts.export_custom_long_edge,
+        aspectRatio: mergeOpts.aspect_ratio,
+      });
+    } catch (e) {
+      db.prepare('UPDATE video_merges SET status = ?, error_msg = ? WHERE id = ?').run('failed', e.message, mergeId);
+      if (taskId) taskService.updateTaskError(db, taskId, e.message);
+      return;
+    }
+  }
+
   const totalDuration = scenes.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
   const storageRoot = getStorageRoot();
-  const tempDir = path.join(require('os').tmpdir(), 'drama-video-merge');
+  const tempDir = path.join(require('os').tmpdir(), 'drama-video-merge', String(mergeId));
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
   const localPaths = [];
@@ -231,7 +265,22 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
     if (!fs.existsSync(mergedDir)) fs.mkdirSync(mergedDir, { recursive: true });
     const outputFileName = `merged_${Date.now()}.mp4`;
     const outputPath = path.join(mergedDir, outputFileName);
-    const ok = runFfmpegConcat(localPaths, outputPath, log);
+    let concatPaths = localPaths;
+    if (exportDimensions) {
+      concatPaths = [];
+      for (let i = 0; i < localPaths.length; i++) {
+        const normalizedPath = path.join(tempDir, `normalized_${i}.mp4`);
+        if (!normalizeVideoForExport(localPaths[i], normalizedPath, exportDimensions, log)) {
+          const message = `导出分辨率转换失败：第 ${i + 1} 段视频`;
+          db.prepare('UPDATE video_merges SET status = ?, error_msg = ? WHERE id = ?').run('failed', message, mergeId);
+          if (taskId) taskService.updateTaskError(db, taskId, message);
+          return;
+        }
+        concatPaths.push(normalizedPath);
+        toCleanup.push(normalizedPath);
+      }
+    }
+    const ok = runFfmpegConcat(concatPaths, outputPath, log);
     if (ok && fs.existsSync(outputPath)) {
       mergedRelativePath = sub
         ? path.join(sub, 'videos', 'merged', outputFileName).replace(/\\/g, '/')
@@ -240,11 +289,11 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
     }
   }
 
-  let mergeOpts = {};
-  try {
-    mergeOpts = JSON.parse(r.merge_options || '{}');
-  } catch (_) {
-    mergeOpts = {};
+  if (exportDimensions && !mergedRelativePath) {
+    const message = '导出分辨率合成失败，请确认 ffmpeg 可用且所有分镜视频可读取';
+    db.prepare('UPDATE video_merges SET status = ?, error_msg = ? WHERE id = ?').run('failed', message, mergeId);
+    if (taskId) taskService.updateTaskError(db, taskId, message);
+    return;
   }
   const postNeed =
     !!mergeOpts.burn_narration_subtitles

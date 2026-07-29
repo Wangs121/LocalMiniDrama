@@ -827,6 +827,16 @@
             </el-select>
             <span class="sb-config-hint">四/九宫格自动按视角拆分</span>
           </label>
+          <span class="sb-config-divider">｜</span>
+          <label class="sb-config-item">
+            <span class="sb-config-label">分镜视频分辨率</span>
+            <el-select v-model="videoResolution" size="small" style="width:110px">
+              <el-option label="480p" value="480p" />
+              <el-option label="720p" value="720p" />
+              <el-option label="1080p" value="1080p" />
+            </el-select>
+            <span class="sb-config-hint">Seedance 分镜生成使用</span>
+          </label>
         </div>
         <div class="sb-config-row sb-narration-export-row" style="margin-top:10px;flex-wrap:wrap;align-items:center;gap:12px">
           <el-checkbox v-model="storyboardUseFirstLastFrame" @change="onStoryboardUseFirstLastFrameChange">
@@ -1549,13 +1559,6 @@
       <section class="section card">
         <h2 class="section-title">视频配置</h2>
         <div class="config-grid">
-          <el-form-item label="分辨率">
-            <el-select v-model="videoResolution" style="width: 160px">
-              <el-option label="480p" value="480p" />
-              <el-option label="720p" value="720p" />
-              <el-option label="1080p" value="1080p" />
-            </el-select>
-          </el-form-item>
           <!--
           <el-form-item label="配乐">
             <el-select v-model="videoMusic" placeholder="无" clearable style="width: 160px">
@@ -1607,6 +1610,25 @@
       <!-- 8. 合成视频 -->
       <section id="anchor-video" class="section card">
         <h2 class="section-title">合成视频</h2>
+        <div class="video-export-options">
+          <el-form-item label="导出分辨率">
+            <el-select v-model="exportVideoResolution" style="width: 150px">
+              <el-option label="360p" value="360p" />
+              <el-option label="480p" value="480p" />
+              <el-option label="540p" value="540p" />
+              <el-option label="720p" value="720p" />
+              <el-option label="1080p" value="1080p" />
+              <el-option label="1440p" value="1440p" />
+              <el-option label="2160p" value="2160p" />
+              <el-option label="4K (3840p)" value="4k" />
+              <el-option label="自定义" value="custom" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="exportVideoResolution === 'custom'" label="最长边">
+            <el-input-number v-model="exportCustomLongEdge" :min="2" :max="3840" :step="2" controls-position="right" style="width: 140px" />
+          </el-form-item>
+          <span class="video-option-hint">{{ exportResolutionPreview }}</span>
+        </div>
         <el-button
           type="primary"
           size="large"
@@ -2764,6 +2786,21 @@ const videoBurnDialogue = ref(false)
 const videoWatermark = ref(false)
 /** 水印开启时烧录到成片右下角 */
 const videoWatermarkText = ref('')
+const exportVideoResolution = ref('1080p')
+const exportCustomLongEdge = ref(1080)
+const exportResolutionPreview = computed(() => {
+  const edge = exportVideoResolution.value === 'custom'
+    ? Number(exportCustomLongEdge.value)
+    : Number(String(exportVideoResolution.value).replace(/[^0-9]/g, '')) || 3840
+  const parts = String(projectAspectRatio.value || '16:9').split(':').map(Number)
+  if (!Number.isFinite(edge) || edge < 2 || edge > 3840 || parts.length !== 2 || !parts[0] || !parts[1]) {
+    return '请输入不超过 3840 的有效尺寸'
+  }
+  const long = Math.floor(edge / 2) * 2
+  const width = parts[0] >= parts[1] ? long : Math.max(2, Math.round((long * parts[0]) / parts[1] / 2) * 2)
+  const height = parts[0] >= parts[1] ? Math.max(2, Math.round((long * parts[1]) / parts[0] / 2) * 2) : long
+  return `预计输出 ${width} × ${height}`
+})
 
 const dramaId = computed(() => store.dramaId)
 const characters = computed(() => store.characters)
@@ -7021,11 +7058,18 @@ function getFinalizeMergeOptions() {
     burn_narration_subtitles: !!videoSubtitle.value,
     burn_dialogue_audio: !!videoBurnDialogue.value,
     watermark_text: videoWatermark.value ? String(videoWatermarkText.value || '').trim().slice(0, 200) : '',
+    export_resolution: exportVideoResolution.value,
+    export_custom_long_edge: exportVideoResolution.value === 'custom' ? exportCustomLongEdge.value : undefined,
+    aspect_ratio: projectAspectRatio.value || '16:9',
   }
 }
 
 async function onGenerateVideo() {
   if (!currentEpisodeId.value) return
+  if (exportVideoResolution.value === 'custom' && (!Number.isFinite(Number(exportCustomLongEdge.value)) || Number(exportCustomLongEdge.value) < 2 || Number(exportCustomLongEdge.value) > 3840)) {
+    ElMessage.error('自定义导出分辨率最长边必须在 2 到 3840 像素之间')
+    return
+  }
   const epId = currentEpisodeId.value
   const did = dramaId.value
   const dramaTitle = store.drama?.title || ''
@@ -8963,6 +9007,23 @@ html.light .section-title { color: #1e1b4b; }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.batch-video-resolution,
+.video-export-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.batch-video-resolution {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.video-export-options {
+  margin: 0 0 12px;
+}
+.video-export-options :deep(.el-form-item) {
+  margin: 0;
 }
 .batch-status {
   margin-top: 12px;

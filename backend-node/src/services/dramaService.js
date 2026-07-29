@@ -830,6 +830,9 @@ function finalizeEpisode(db, log, episodeId, baseUrl, body = {}) {
       watermark_text: (body && body.watermark_text != null)
         ? String(body.watermark_text).trim().slice(0, 200)
         : '',
+      export_resolution: body && body.export_resolution ? String(body.export_resolution).trim().toLowerCase() : '',
+      export_custom_long_edge: body && body.export_custom_long_edge != null ? Number(body.export_custom_long_edge) : null,
+      aspect_ratio: body && body.aspect_ratio ? String(body.aspect_ratio).trim() : '16:9',
     },
   };
   const created = videoMergeService.create(db, log, mergeReq);

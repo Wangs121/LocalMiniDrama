@@ -220,7 +220,6 @@ async function finalizeSuccessfulVideo(db, log, videoGenId, row, rowForAspect, v
     const storagePath = resolveStoragePath(cfg);
     const projectSubdir = storageLayout.getProjectStorageSubdir(db, row.drama_id);
     localPath = await downloadVideoToLocal(storagePath, videoUrl, videoGenId, log, projectSubdir);
-    maybeNormalizeVideoAfterDownload(storagePath, localPath, rowForAspect, videoGenId, log);
   } catch (_) {}
   try {
     db.prepare(
