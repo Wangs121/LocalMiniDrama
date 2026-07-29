@@ -117,7 +117,7 @@
     <el-dialog
       v-model="showNewDialog"
       title="新建项目"
-      width="480px"
+      width="min(480px, calc(100vw - 24px))"
       :close-on-click-modal="false"
       @closed="resetNewForm"
     >
