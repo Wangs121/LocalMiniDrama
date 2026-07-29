@@ -33,6 +33,29 @@
         <el-form :model="infoForm" label-width="110px" label-position="left" class="info-form">
           <el-row :gutter="24">
             <el-col :span="12">
+              <el-form-item label="内容类型">
+                <el-radio-group v-model="infoForm.content_type" :disabled="episodes.length > 0" @change="saveInfo">
+                  <el-radio-button
+                    v-for="item in CONTENT_TYPE_OPTIONS"
+                    :key="item.value"
+                    :label="item.value"
+                  >{{ item.label }}</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col v-if="isTopicVideo" :span="12">
+              <el-form-item label="创作目的">
+                <el-select v-model="infoForm.topic_purpose" style="width: 100%" @change="saveInfo">
+                  <el-option
+                    v-for="item in TOPIC_PURPOSE_OPTIONS"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
               <el-form-item label="标题">
                 <el-input v-model="infoForm.title" placeholder="剧集标题" @blur="saveInfo" />
               </el-form-item>
@@ -96,9 +119,42 @@
                 </el-select>
               </el-form-item>
             </el-col>
+            <el-col :span="12">
+              <el-form-item label="目标时长">
+                <el-input-number
+                  v-model="infoForm.target_episode_duration_sec"
+                  :min="10"
+                  :max="600"
+                  :step="5"
+                  :precision="0"
+                  controls-position="right"
+                  style="width: 100%"
+                  @change="saveInfo"
+                />
+              </el-form-item>
+            </el-col>
             <el-col :span="24">
-              <el-form-item label="故事梗概">
-                <el-input v-model="infoForm.description" type="textarea" :rows="3" placeholder="一句话描述故事梗概" @blur="saveInfo" />
+              <el-form-item :label="isTopicVideo ? '表达风格' : '剧集风格'">
+                <el-input
+                  v-model="infoForm.narrative_style_prompt"
+                  type="textarea"
+                  :rows="2"
+                  maxlength="1000"
+                  show-word-limit
+                  :placeholder="isTopicVideo ? '例如：专业克制、面向儿童、避免营销腔' : '例如：慢节奏治愈日常，不使用悬念或强冲突'"
+                  @blur="saveInfo"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item :label="isTopicVideo ? '主题或资料' : '故事梗概'">
+                <el-input
+                  v-model="infoForm.description"
+                  type="textarea"
+                  :rows="3"
+                  :placeholder="isTopicVideo ? '输入主题、产品信息或参考资料' : '一句话描述故事梗概'"
+                  @blur="saveInfo"
+                />
               </el-form-item>
             </el-col>
           </el-row>
@@ -110,12 +166,12 @@
         <div class="section-header">
           <div class="section-title">分集列表</div>
           <span class="section-count">共 {{ episodes.length }} 集</span>
-          <EpisodeBatchImportDialog ref="episodeBatchImportDialogRef" :start-episode-number="nextEpisodeNumber" style="margin-left: auto" @import="onBatchImportEpisodes" />
-          <el-button size="small" type="primary" :loading="addingEpisode" @click="onAddEpisode">
+          <EpisodeBatchImportDialog v-if="!isTopicVideo" ref="episodeBatchImportDialogRef" :start-episode-number="nextEpisodeNumber" style="margin-left: auto" @import="onBatchImportEpisodes" />
+          <el-button v-if="!isTopicVideo" size="small" type="primary" :loading="addingEpisode" @click="onAddEpisode">
             <el-icon><Plus /></el-icon>新增一集
           </el-button>
         </div>
-        <div v-if="episodes.length === 0" class="empty-tip">暂无分集，点击「新增一集」开始创作</div>
+        <div v-if="episodes.length === 0" class="empty-tip">{{ isTopicVideo ? '尚未生成主题视频脚本，请进入制作' : '暂无分集，点击「新增一集」开始创作' }}</div>
         <div v-else class="episode-grid">
           <div
             v-for="ep in episodes"
@@ -577,6 +633,12 @@ import { characterAPI } from '@/api/characters'
 import { sceneAPI } from '@/api/scenes'
 import { propAPI } from '@/api/props'
 import { stylePromptMetadataForSave, backfillDramaStylePromptMetadataIfNeeded } from '@/constants/styleOptions'
+import {
+  CONTENT_TYPE_OPTIONS,
+  TOPIC_PURPOSE_OPTIONS,
+  normalizeContentForm,
+  buildContentMetadata,
+} from '@/utils/contentTypes'
 
 const route = useRoute()
 const { isDark, toggle: toggleTheme } = useTheme()
@@ -882,7 +944,18 @@ const nextEpisodeNumber = computed(() => (
     : 1
 ))
 
-const infoForm = reactive({ title: '', description: '', genre: '', style: '', aspect_ratio: '16:9' })
+const infoForm = reactive({
+  title: '',
+  description: '',
+  genre: '',
+  style: '',
+  aspect_ratio: '16:9',
+  content_type: 'short_drama',
+  topic_purpose: 'explanation',
+  target_episode_duration_sec: 60,
+  narrative_style_prompt: '',
+})
+const isTopicVideo = computed(() => infoForm.content_type === 'topic_video')
 
 function assetImageUrl(item) {
   if (!item) return ''
@@ -908,6 +981,11 @@ async function loadDrama() {
     infoForm.genre = d.genre || ''
     infoForm.style = d.style || ''
     infoForm.aspect_ratio = d.metadata?.aspect_ratio || '16:9'
+    const contentForm = normalizeContentForm(d.metadata, d.episodes?.length)
+    infoForm.content_type = contentForm.contentType
+    infoForm.topic_purpose = contentForm.topicPurpose
+    infoForm.target_episode_duration_sec = contentForm.targetDurationSec
+    infoForm.narrative_style_prompt = contentForm.narrativeStylePrompt
   } catch (e) {
     ElMessage.error(e.message || '加载失败')
   } finally {
@@ -927,6 +1005,12 @@ function saveInfo() {
         metadata: {
           ...stylePromptMetadataForSave(infoForm.style),
           aspect_ratio: infoForm.aspect_ratio || '16:9',
+          ...buildContentMetadata({
+            contentType: infoForm.content_type,
+            topicPurpose: infoForm.topic_purpose,
+            targetDurationSec: infoForm.target_episode_duration_sec,
+            narrativeStylePrompt: infoForm.narrative_style_prompt,
+          }),
         },
       })
     } catch (e) {
@@ -1203,10 +1287,10 @@ watch(activeResTab, (tab) => {
   else if (tab === 'lib-prop') loadPropList()
 })
 
-onMounted(() => {
-  loadDrama()
+onMounted(async () => {
+  await loadDrama()
   loadCharList()
-  if (route.query.importBatch) {
+  if (route.query.importBatch && !isTopicVideo.value) {
     setTimeout(() => {
       episodeBatchImportDialogRef.value?.openDialog?.()
     }, 0)
