@@ -14,6 +14,7 @@ function createDrama(db, log) {
       const drama = dramaService.createDrama(db, log, body);
       response.created(res, drama);
     } catch (err) {
+      if (err.code === 'BAD_REQUEST') return response.badRequest(res, err.message);
       log.error('Create drama failed', { error: err.message, stack: err.stack });
       response.internalError(res, err.message || '创建失败');
     }
@@ -81,9 +82,15 @@ function getDramaStats(db, log) {
 
 function saveOutline(db, log) {
   return (req, res) => {
-    const ok = dramaService.saveOutline(db, log, req.params.id, req.body || {});
-    if (!ok) return response.notFound(res, '剧本不存在');
-    response.success(res, { message: '保存成功' });
+    try {
+      const ok = dramaService.saveOutline(db, log, req.params.id, req.body || {});
+      if (!ok) return response.notFound(res, '剧本不存在');
+      response.success(res, { message: '保存成功' });
+    } catch (err) {
+      if (err.code === 'BAD_REQUEST') return response.badRequest(res, err.message);
+      log.error('Save outline failed', { error: err.message });
+      response.internalError(res, err.message || '保存失败');
+    }
   };
 }
 
@@ -109,9 +116,15 @@ function saveEpisodes(db, log) {
   return (req, res) => {
     const body = req.body || {};
     if (!Array.isArray(body.episodes)) return response.badRequest(res, 'episodes 必填且为数组');
-    const ok = dramaService.saveEpisodes(db, log, req.params.id, body);
-    if (!ok) return response.notFound(res, '剧本不存在');
-    response.success(res, { message: '保存成功' });
+    try {
+      const ok = dramaService.saveEpisodes(db, log, req.params.id, body);
+      if (!ok) return response.notFound(res, '剧本不存在');
+      response.success(res, { message: '保存成功' });
+    } catch (err) {
+      if (err.code === 'BAD_REQUEST') return response.badRequest(res, err.message);
+      log.error('Save episodes failed', { error: err.message });
+      response.internalError(res, err.message || '保存失败');
+    }
   };
 }
 

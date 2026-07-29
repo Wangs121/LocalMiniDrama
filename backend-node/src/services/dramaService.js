@@ -3,6 +3,10 @@
 const storageLayout = require('./storageLayout');
 const { resolveStylePreset } = require('../constants/generationStylePresets');
 const seedance2AssetGuards = require('../utils/seedance2AssetGuards');
+const {
+  normalizeContentSettings,
+  mergeContentMetadata,
+} = require('./contentTypeProfiles');
 
 /**
  * 清理 image_url：如果数据库中存储的是 base64 data URL，则返回 null。
@@ -40,6 +44,7 @@ function createDrama(db, log, req) {
   if (!meta.storage_folder_label) {
     meta.storage_folder_label = storageLayout.sanitizeFolderLabel(req.title || '');
   }
+  meta = mergeContentMetadata({}, meta, { hasEpisodes: false });
   const metadataStr = Object.keys(meta).length ? JSON.stringify(meta) : null;
   const stmt = db.prepare(`
     INSERT INTO dramas (title, description, genre, style, metadata, status, created_at, updated_at)
@@ -487,7 +492,10 @@ function saveOutline(db, log, dramaId, req) {
       newMetadata = {};
     }
   }
-  const mergedMetadata = { ...existingMetadata, ...newMetadata };
+  const hasEpisodes = !!db.prepare(
+    'SELECT 1 FROM episodes WHERE drama_id = ? AND deleted_at IS NULL LIMIT 1'
+  ).get(Number(dramaId));
+  const mergedMetadata = mergeContentMetadata(existingMetadata, newMetadata, { hasEpisodes });
 
   // 与 mergeCfgStyleWithDrama 一致：提示词优先读 metadata.style_prompt_*。仅改 dramas.style 而不带画风长文案时，
   // 若仍保留旧的 metadata 画风，会出现「列表/首页 badge 已是新 style，角色提示词却仍用旧画风」。
@@ -653,6 +661,12 @@ function saveEpisodes(db, log, dramaId, req) {
   const drama = getDramaById(db, did);
   if (!drama) return false;
   const episodes = req.episodes || [];
+  const contentSettings = normalizeContentSettings(drama.metadata);
+  if (contentSettings.content_type === 'topic_video' && episodes.length > 1) {
+    const error = new Error('主题视频项目只能包含一集');
+    error.code = 'BAD_REQUEST';
+    throw error;
+  }
   const now = new Date().toISOString();
 
   // 按 episode_number upsert：保留已有分集的 id，避免关联数据（角色/场景/道具/分镜）孤岛化
