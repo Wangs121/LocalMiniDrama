@@ -3,6 +3,11 @@ const aiClient = require('./aiClient');
 const promptI18n = require('./promptI18n');
 const taskService = require('./taskService');
 const dramaService = require('./dramaService');
+const storyPromptBuilder = require('./storyPromptBuilder');
+const {
+  normalizeContentSettings,
+  effectiveEpisodeCount,
+} = require('./contentTypeProfiles');
 const { safeParseAIJSON } = require('../utils/safeJson');
 const loadConfig = require('../config').loadConfig;
 
@@ -14,10 +19,35 @@ async function generateStory(db, log, body) {
   const cfg = loadConfig();
   const style = body.style || body.genre || null;
   const type = body.type || null;
-  const episodeCount = Math.max(1, Math.floor(Number(body.episode_count) || 1));
+  let metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+  let dramaId;
+  if (body.drama_id != null && body.drama_id !== '') {
+    dramaId = Number(body.drama_id);
+    const project = db.prepare(
+      'SELECT id, metadata, genre, style FROM dramas WHERE id = ? AND deleted_at IS NULL'
+    ).get(dramaId);
+    if (!project) throw new Error('项目不存在');
+    try {
+      metadata = project.metadata
+        ? (typeof project.metadata === 'string' ? JSON.parse(project.metadata) : project.metadata)
+        : {};
+    } catch (_) {
+      metadata = {};
+    }
+  }
 
-  const systemPrompt = promptI18n.getStoryExpansionSystemPrompt(cfg, episodeCount);
-  const userPrompt = promptI18n.buildStoryExpansionUserPrompt(cfg, premise, style, type, episodeCount);
+  const settings = normalizeContentSettings(metadata);
+  const episodeCount = effectiveEpisodeCount(body.episode_count, settings);
+  const promptKey = settings.content_type === 'topic_video'
+    ? storyPromptBuilder.TOPIC_VIDEO_KEY
+    : storyPromptBuilder.SHORT_DRAMA_KEY;
+  const { systemPrompt, userPrompt } = storyPromptBuilder.buildStoryPrompts(cfg, {
+    premise,
+    style,
+    type,
+    episodeCount,
+    settings,
+  }, promptI18n.getPromptOverride(promptKey));
 
   // 每集约 800 字（中文）≈ 1600 token，多留余量作为最低需求；
   // 不使用 max_tokens 硬上限，而是用 min_max_tokens 确保即使用户 AI 配置了小上限也能保证基本输出量。
@@ -30,6 +60,9 @@ async function generateStory(db, log, body) {
     model: body.model || undefined,
     temperature: 0.8,
     min_max_tokens: minTokensNeeded,
+    prompt_skill_stage: 'story',
+    prompt_skill_insert_before_output: true,
+    prompt_skill_drama_id: dramaId,
   });
 
   log && log.info && log.info('Story raw response', {

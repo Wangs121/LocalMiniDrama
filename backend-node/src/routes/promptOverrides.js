@@ -6,8 +6,13 @@ const response = require('../response');
 const PROMPT_META = [
   {
     key: 'story_expansion_system',
-    label: '故事生成提示词',
-    description: '控制 AI 如何将故事梗概扩写成完整剧本',
+    label: '短剧脚本生成提示词',
+    description: '控制 AI 如何将故事梗概扩写为时长驱动的短剧脚本',
+  },
+  {
+    key: 'topic_video_story_system',
+    label: '主题视频脚本生成提示词',
+    description: '控制 AI 如何生成宣传、讲解或科普类主题视频的小脚本',
   },
   {
     key: 'storyboard_system',

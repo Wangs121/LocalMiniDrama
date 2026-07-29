@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const promptSkillService = require('../src/services/promptSkillService');
 const promptI18n = require('../src/services/promptI18n');
+const storyPromptBuilder = require('../src/services/storyPromptBuilder');
 
 function settingsDb(enabled = null) {
   return {
@@ -43,7 +44,18 @@ describe('prompt Skill composition', () => {
 
   it('supports storyboard, frame, classic video, and omni video system prompts', () => {
     const cfg = { app: { language: 'en' }, style: { default_image_ratio: '16:9' } };
+    const story = storyPromptBuilder.buildStoryPrompts(cfg, {
+      premise: 'A quiet reunion',
+      episodeCount: 1,
+      settings: {
+        content_type: 'short_drama',
+        topic_purpose: null,
+        target_episode_duration_sec: 60,
+        narrative_style_prompt: '',
+      },
+    });
     const cases = [
+      ['story', story.systemPrompt, ['creative-strategy']],
       ['storyboard', promptI18n.getStoryboardSystemPrompt(cfg), ['storyboard-planning']],
       ['frame_prompt', promptI18n.getFirstFramePrompt(cfg), ['visual-aesthetics']],
       ['video_prompt', promptI18n.getClassicVideoPromptPolishPrompt(), ['cinematic-camera']],
