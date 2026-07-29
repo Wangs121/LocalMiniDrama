@@ -54,12 +54,17 @@ export function buildContentMetadata(form = {}) {
 
 export function buildStoryGenerationInput(form = {}) {
   const metadata = buildContentMetadata(form)
-  return {
+  const input = {
     episode_count: metadata.content_type === 'topic_video'
       ? 1
       : Math.max(1, Math.floor(Number(form.episodeCount) || 1)),
     metadata,
   }
+  if (metadata.content_type === 'short_drama') {
+    if (form.storyStyle) input.style = form.storyStyle
+    if (form.storyType) input.type = form.storyType
+  }
+  return input
 }
 
 export function contentTypeLabel(value = 'short_drama') {

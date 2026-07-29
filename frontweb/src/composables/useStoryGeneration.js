@@ -3,6 +3,7 @@ import { dramaAPI } from '@/api/drama'
 import { generationAPI } from '@/api/generation'
 import { stylePromptMetadataForSave } from '@/constants/styleOptions'
 import { GEN_RESOURCE } from '@/stores/generationTaskStore'
+import { buildStoryGenerationInput } from '@/utils/contentTypes'
 
 /**
  * 从故事梗概调用 AI 生成多集剧本并写入 drama（与 FilmCreate.onGenerateStory 一致）
@@ -14,6 +15,10 @@ export async function runGenerateStoryFromPremise({
   storyStyle,
   storyType,
   storyEpisodeCount,
+  contentType = 'short_drama',
+  topicPurpose = 'explanation',
+  targetEpisodeDurationSec = 60,
+  narrativeStylePrompt = '',
   scriptTitle,
   generationStyle,
   projectAspectRatio,
@@ -34,30 +39,47 @@ export async function runGenerateStoryFromPremise({
 }) {
   const text = (premise || '').trim()
   if (!text) {
-    ElMessage.warning('请先输入故事梗概')
+    ElMessage.warning(contentType === 'topic_video' ? '请先输入主题或参考资料' : '请先输入故事梗概')
     return { ok: false }
   }
 
   storyGenerating.value = true
   try {
+    const storyInput = buildStoryGenerationInput({
+      contentType,
+      topicPurpose,
+      targetDurationSec: targetEpisodeDurationSec,
+      narrativeStylePrompt,
+      episodeCount: storyEpisodeCount,
+      storyStyle,
+      storyType,
+    })
+    const projectMetadata = {
+      ...stylePromptMetadataForSave(generationStyle),
+      story_style: contentType === 'short_drama' ? (storyStyle || undefined) : undefined,
+      aspect_ratio: projectAspectRatio || '16:9',
+      ...storyInput.metadata,
+    }
     let dramaId = store.dramaId
     if (!dramaId) {
       const drama = await dramaAPI.create({
-        title: scriptTitle || '新故事',
+        title: scriptTitle || (contentType === 'topic_video' ? '新主题视频' : '新故事'),
         description: text,
-        genre: storyType || undefined,
+        genre: storyInput.type,
         style: generationStyle || undefined,
-        metadata: {
-          ...stylePromptMetadataForSave(generationStyle),
-          story_style: storyStyle || undefined,
-          aspect_ratio: projectAspectRatio || '16:9',
-        },
+        metadata: projectMetadata,
       })
       store.setDrama(drama)
       dramaId = drama.id
       if (replaceRouteWhenNew && route?.params?.id === 'new' && router) {
         router.replace('/film/' + dramaId)
       }
+    } else {
+      await dramaAPI.saveOutline(dramaId, {
+        summary: text,
+        genre: storyInput.type,
+        metadata: projectMetadata,
+      })
     }
 
     const dramaTitle = store.drama?.title || scriptTitle || '项目'
@@ -76,18 +98,14 @@ export async function runGenerateStoryFromPremise({
       const res = await generationAPI.generateStory({
         drama_id: dramaId,
         premise: text,
-        style: storyStyle || undefined,
-        type: storyType || undefined,
-        episode_count: storyEpisodeCount || 1,
+        style: storyInput.style,
+        type: storyInput.type,
+        episode_count: storyInput.episode_count,
         title: scriptTitle || undefined,
         summary: text,
-        genre: storyType || undefined,
+        genre: storyInput.type,
         drama_style: generationStyle || undefined,
-        metadata: {
-          ...stylePromptMetadataForSave(generationStyle),
-          story_style: storyStyle || undefined,
-          aspect_ratio: projectAspectRatio || '16:9',
-        },
+        metadata: projectMetadata,
       })
 
       const taskId = res?.task_id

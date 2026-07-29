@@ -191,28 +191,51 @@
           <el-tab-pane label="创作剧本" name="create">
             <div class="script-pane-inner">
               <div class="script-sub-block">
-                <h2 class="section-title">故事生成</h2>
-                <p class="section-desc">输入一段故事梗概，AI 帮你扩写成完整剧本，或直接导入小说章节</p>
+                <h2 class="section-title">{{ isTopicVideo ? '主题视频脚本生成' : '短剧脚本生成' }}</h2>
+                <p class="section-desc">{{ isTopicVideo ? '输入主题、产品资料或参考内容，AI 帮你生成可分镜的小脚本' : '输入故事梗概，AI 帮你扩写成适合目标时长的短剧脚本' }}</p>
+                <div class="row gap" style="margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
+                  <el-radio-group v-model="contentType" :disabled="contentTypeLocked" @change="onContentTypeChange">
+                    <el-radio-button
+                      v-for="item in CONTENT_TYPE_OPTIONS"
+                      :key="item.value"
+                      :label="item.value"
+                    >{{ item.label }}</el-radio-button>
+                  </el-radio-group>
+                  <el-select
+                    v-if="isTopicVideo"
+                    v-model="topicPurpose"
+                    placeholder="创作目的"
+                    style="width: 120px"
+                    @change="() => saveProjectSettings(false)"
+                  >
+                    <el-option
+                      v-for="item in TOPIC_PURPOSE_OPTIONS"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                    />
+                  </el-select>
+                </div>
                 <el-input
                   v-model="storyInput"
                   type="textarea"
                   :rows="4"
-                  placeholder="例如：一个少女在森林里遇见会说话的狐狸，一起寻找失落的宝石..."
+                  :placeholder="isTopicVideo ? '输入主题、产品信息、知识资料或需要讲解的内容...' : '例如：一个少女在森林里遇见会说话的狐狸，一起寻找失落的宝石...'"
                   class="story-textarea"
                 />
                 <div class="row gap" style="margin-top: 10px; flex-wrap: wrap;">
-                  <el-select v-model="storyStyle" placeholder="故事风格" clearable style="width: 120px" @change="() => saveProjectSettings(false)">
+                  <el-select v-if="!isTopicVideo" v-model="storyStyle" placeholder="故事风格" clearable style="width: 120px" @change="() => saveProjectSettings(false)">
                     <el-option label="现代" value="modern" />
                     <el-option label="古风" value="ancient" />
                     <el-option label="奇幻" value="fantasy" />
                     <el-option label="日常" value="daily" />
                   </el-select>
-                  <el-select v-model="storyType" placeholder="剧本类型" clearable style="width: 120px" @change="() => saveProjectSettings(false)">
+                  <el-select v-if="!isTopicVideo" v-model="storyType" placeholder="剧本类型" clearable style="width: 120px" @change="() => saveProjectSettings(false)">
                     <el-option label="剧情" value="drama" />
                     <el-option label="喜剧" value="comedy" />
                     <el-option label="冒险" value="adventure" />
                   </el-select>
-                  <div style="display:flex;align-items:center;gap:6px;font-size:13px">
+                  <div v-if="!isTopicVideo" style="display:flex;align-items:center;gap:6px;font-size:13px">
                     <span>集数</span>
                     <el-input-number
                       v-model="storyEpisodeCount"
@@ -223,10 +246,32 @@
                       style="width: 100px"
                     />
                   </div>
+                  <div style="display:flex;align-items:center;gap:6px;font-size:13px">
+                    <span>目标时长</span>
+                    <el-input-number
+                      v-model="targetEpisodeDurationSec"
+                      :min="10"
+                      :max="600"
+                      :step="5"
+                      :precision="0"
+                      controls-position="right"
+                      style="width: 110px"
+                      @change="() => saveProjectSettings(false)"
+                    />
+                    <span>秒</span>
+                  </div>
+                  <el-input
+                    v-model="narrativeStylePrompt"
+                    :placeholder="isTopicVideo ? '表达风格（选填）' : '剧集风格（选填）'"
+                    maxlength="1000"
+                    clearable
+                    style="width: min(320px, 100%)"
+                    @change="() => saveProjectSettings(false)"
+                  />
                   <el-button type="primary" :loading="isStoryGenRunning" @click="onGenerateStory">
-                    生成剧本
+                    {{ isTopicVideo ? '生成小脚本' : '生成剧本' }}
                   </el-button>
-                  <el-button plain @click="showNovelImport = true">
+                  <el-button v-if="!isTopicVideo" plain @click="showNovelImport = true">
                     <el-icon><DocumentAdd /></el-icon>
                     导入小说
                   </el-button>
@@ -2666,6 +2711,12 @@ import {
 } from '@/constants/styleOptions'
 import { useNavigation } from '@/composables/filmCreate/useNavigation'
 import { runGenerateStoryFromPremise } from '@/composables/useStoryGeneration'
+import {
+  CONTENT_TYPE_OPTIONS,
+  TOPIC_PURPOSE_OPTIONS,
+  normalizeContentForm,
+  buildContentMetadata,
+} from '@/utils/contentTypes'
 import { useCharacters } from '@/composables/filmCreate/useCharacters'
 import { useProps as usePropsComposable } from '@/composables/filmCreate/useProps'
 import { useScenes } from '@/composables/filmCreate/useScenes'
@@ -2699,6 +2750,12 @@ const storyInput = ref('')
 const storyStyle = ref('')
 const storyType = ref('')
 const storyEpisodeCount = ref(1)
+const contentType = ref('short_drama')
+const topicPurpose = ref('explanation')
+const targetEpisodeDurationSec = ref(60)
+const narrativeStylePrompt = ref('')
+const contentTypeLocked = computed(() => (store.drama?.episodes || []).length > 0)
+const isTopicVideo = computed(() => contentType.value === 'topic_video')
 const storyGenerating = ref(false)
 /** 剧本工作台：create 创作 | select 选择预览 */
 const scriptWorkbenchMode = ref('create')
@@ -3379,6 +3436,10 @@ function userFilledVideoDuration() {
 /** 请求后端的视频总时长：仅未手动填时传剧本估算 */
 function getVideoDurationForApi() {
   if (userFilledVideoDuration()) return Math.round(Number(videoDuration.value))
+  const target = Number(targetEpisodeDurationSec.value)
+  if (Number.isFinite(target) && target >= 10) {
+    return Math.min(600, Math.round(target))
+  }
   const len = scriptTextTrimmedForEstimate().length
   if (len < 1) return undefined
   return estimateVideoDurationSecFromCharLen(len) ?? undefined
@@ -4579,6 +4640,12 @@ async function loadDrama() {
     storyInput.value = (d.description || '').toString().trim()
     storyStyle.value = (d.metadata && d.metadata.story_style) ? d.metadata.story_style : ''
     storyType.value = d.genre || ''
+    const contentForm = normalizeContentForm(d.metadata, d.episodes?.length)
+    contentType.value = contentForm.contentType
+    topicPurpose.value = contentForm.topicPurpose
+    targetEpisodeDurationSec.value = contentForm.targetDurationSec
+    narrativeStylePrompt.value = contentForm.narrativeStylePrompt
+    if (contentForm.contentType === 'topic_video') storyEpisodeCount.value = 1
     generationStyle.value = d.style || ''
     projectAspectRatio.value = (d.metadata && d.metadata.aspect_ratio) ? d.metadata.aspect_ratio : '16:9'
     videoClipDuration.value = (d.metadata && d.metadata.video_clip_duration) ? Number(d.metadata.video_clip_duration) : 5
@@ -4887,6 +4954,7 @@ async function saveScriptToBackend(content) {
         ...projectStylePromptMetadata(),
         story_style: storyStyle.value || undefined,
         aspect_ratio: projectAspectRatio.value || '16:9',
+        ...contentMetadataForSave(),
       },
     })
     store.setDrama(drama)
@@ -4925,6 +4993,7 @@ async function saveScriptToBackend(content) {
           ...projectStylePromptMetadata(),
           story_style: storyStyle.value || undefined,
           aspect_ratio: projectAspectRatio.value || '16:9',
+          ...contentMetadataForSave(),
         },
       }).catch(() => {})
     }
@@ -4963,6 +5032,7 @@ async function saveScriptToBackend(content) {
         ...projectStylePromptMetadata(),
         story_style: storyStyle.value || undefined,
         aspect_ratio: projectAspectRatio.value || '16:9',
+        ...contentMetadataForSave(),
       },
     }).catch(() => {})
   }
@@ -4984,6 +5054,7 @@ async function saveProjectSettings(includeGenerationStyle = false) {
     storyboard_universal_omni: !!storyboardUniversalOmni.value,
     storyboard_use_first_last_frame: !!storyboardUseFirstLastFrame.value,
     last_frame_use_first_layout_lock: !!lastFrameUseFirstLayoutLock.value,
+    ...contentMetadataForSave(),
   }
   if (includeGenerationStyle) {
     Object.assign(metadata, projectStylePromptMetadata())
@@ -4998,6 +5069,20 @@ async function saveProjectSettings(includeGenerationStyle = false) {
   dramaAPI.saveOutline(store.dramaId, payload).catch(e => console.error('Settings auto-save failed', e))
 }
 
+function contentMetadataForSave() {
+  return buildContentMetadata({
+    contentType: contentType.value,
+    topicPurpose: topicPurpose.value,
+    targetDurationSec: targetEpisodeDurationSec.value,
+    narrativeStylePrompt: narrativeStylePrompt.value,
+  })
+}
+
+function onContentTypeChange(value) {
+  if (value === 'topic_video') storyEpisodeCount.value = 1
+  saveProjectSettings(false)
+}
+
 async function onGenerateStory() {
   trackFilmCreateAction('generate_script_click')
   await runGenerateStoryFromPremise({
@@ -5005,6 +5090,10 @@ async function onGenerateStory() {
     storyStyle: storyStyle.value,
     storyType: storyType.value,
     storyEpisodeCount: storyEpisodeCount.value,
+    contentType: contentType.value,
+    topicPurpose: topicPurpose.value,
+    targetEpisodeDurationSec: targetEpisodeDurationSec.value,
+    narrativeStylePrompt: narrativeStylePrompt.value,
     scriptTitle: scriptTitle.value,
     generationStyle: generationStyle.value,
     projectAspectRatio: projectAspectRatio.value,
@@ -8114,6 +8203,11 @@ function applyRouteToStore() {
     savedCurrentEpisodeNumber.value = 1
     storyStyle.value = ''
     storyType.value = ''
+    storyEpisodeCount.value = 1
+    contentType.value = 'short_drama'
+    topicPurpose.value = 'explanation'
+    targetEpisodeDurationSec.value = 60
+    narrativeStylePrompt.value = ''
     scriptLanguage.value = 'zh'
     scriptStoryboardStyle.value = ''
     generationStyle.value = ''
