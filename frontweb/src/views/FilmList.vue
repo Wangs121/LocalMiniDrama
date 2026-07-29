@@ -57,10 +57,10 @@
               <h3 class="action-card-title">快速开始</h3>
               <div class="action-card-buttons">
                 <el-button type="primary" size="large" class="action-btn action-btn-new" @click="goNewProject">
-                  <el-icon><Plus /></el-icon>新建短剧项目
+                  <el-icon><Plus /></el-icon>新建创作项目
                 </el-button>
                 <el-button size="large" class="action-btn action-btn-import" :loading="importing" @click="triggerImport">
-                  <el-icon><Upload /></el-icon>导入短剧项目
+                  <el-icon><Upload /></el-icon>导入项目
                 </el-button>
               </div>
               <div v-if="exampleList.length > 0" class="action-card-example">
@@ -99,6 +99,7 @@
               <p class="project-desc">{{ d.description || '暂无描述' }}</p>
               <div class="project-badges">
                 <span class="badge badge-status" :class="'badge-status--' + (d.status || 'draft')">{{ formatStatus(d.status) }}</span>
+                <span class="badge badge-content-type">{{ contentTypeLabel(d.metadata?.content_type) }}</span>
                 <span v-if="d.episodes?.length" class="badge badge-episodes">{{ d.episodes.length }} 集</span>
                 <span v-if="totalStoryboards(d) > 0" class="badge badge-storyboards">{{ totalStoryboards(d) }} 分镜</span>
                 <span v-if="d.metadata?.aspect_ratio" class="badge badge-ratio">{{ d.metadata.aspect_ratio }}</span>
@@ -121,6 +122,25 @@
       @closed="resetNewForm"
     >
       <el-form :model="newForm" label-width="80px" label-position="top">
+        <el-form-item label="内容类型">
+          <el-radio-group v-model="newForm.content_type">
+            <el-radio-button
+              v-for="item in CONTENT_TYPE_OPTIONS"
+              :key="item.value"
+              :label="item.value"
+            >{{ item.label }}</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="newForm.content_type === 'topic_video'" label="创作目的">
+          <el-select v-model="newForm.topic_purpose" style="width: 100%">
+            <el-option
+              v-for="item in TOPIC_PURPOSE_OPTIONS"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="标题" required>
           <el-input v-model="newForm.title" placeholder="输入项目标题" maxlength="100" show-word-limit />
         </el-form-item>
@@ -367,6 +387,12 @@ import { uploadAPI } from '@/api/upload'
 import { aiAPI } from '@/api/ai'
 import { imagesAPI } from '@/api/images'
 import { taskAPI } from '@/api/task'
+import {
+  CONTENT_TYPE_OPTIONS,
+  TOPIC_PURPOSE_OPTIONS,
+  buildContentMetadata,
+  contentTypeLabel,
+} from '@/utils/contentTypes'
 
 const router = useRouter()
 const { isDark, toggle: toggleTheme } = useTheme()
@@ -591,7 +617,13 @@ async function onDeletePropLibrary(item) {
 }
 
 const showNewDialog = ref(false)
-const newForm = ref({ title: '', description: '', aspect_ratio: '16:9' })
+const newForm = ref({
+  title: '',
+  description: '',
+  aspect_ratio: '16:9',
+  content_type: 'short_drama',
+  topic_purpose: 'explanation',
+})
 const newSaving = ref(false)
 const exportingId = ref(null)
 const importing = ref(false)
@@ -708,7 +740,13 @@ function goNewProject() {
 }
 
 function resetNewForm() {
-  newForm.value = { title: '', description: '', aspect_ratio: '16:9' }
+  newForm.value = {
+    title: '',
+    description: '',
+    aspect_ratio: '16:9',
+    content_type: 'short_drama',
+    topic_purpose: 'explanation',
+  }
 }
 
 async function submitNew() {
@@ -716,7 +754,19 @@ async function submitNew() {
   if (!title) return
   newSaving.value = true
   try {
-    const drama = await dramaAPI.create({ title, description: newForm.value.description?.trim() || undefined, metadata: { aspect_ratio: newForm.value.aspect_ratio || '16:9' } })
+    const drama = await dramaAPI.create({
+      title,
+      description: newForm.value.description?.trim() || undefined,
+      metadata: {
+        aspect_ratio: newForm.value.aspect_ratio || '16:9',
+        ...buildContentMetadata({
+          contentType: newForm.value.content_type,
+          topicPurpose: newForm.value.topic_purpose,
+          targetDurationSec: 60,
+          narrativeStylePrompt: '',
+        }),
+      },
+    })
     showNewDialog.value = false
     ElMessage.success('项目已创建')
     loadList()
@@ -1195,6 +1245,11 @@ html.light .btn-import {
   background: rgba(14, 165, 233, 0.12);
   color: #38bdf8;
   border: 1px solid rgba(14, 165, 233, 0.28);
+}
+.badge-content-type {
+  background: rgba(236, 72, 153, 0.1);
+  color: #f472b6;
+  border: 1px solid rgba(236, 72, 153, 0.25);
 }
 .badge-storyboards {
   background: rgba(20, 184, 166, 0.12);
