@@ -49,8 +49,8 @@ async function generateStory(db, log, body) {
     settings,
   }, promptI18n.getPromptOverride(promptKey));
 
-  // 每集约 800 字（中文）≈ 1600 token，多留余量作为最低需求；
-  // 不使用 max_tokens 硬上限，而是用 min_max_tokens 确保即使用户 AI 配置了小上限也能保证基本输出量。
+  // 为分集 JSON、场景动作和对白预留足够输出空间；目标成片时长由提示词控制。
+  // 不使用 max_tokens 硬上限，避免覆盖用户配置，只设置可用输出空间的下限。
   const minTokensNeeded = Math.max(2000, episodeCount * 2200);
 
   // 注意：不使用 json_mode=true，因为 response_format:json_object 要求返回 JSON 对象而非数组，

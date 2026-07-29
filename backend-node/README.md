@@ -210,6 +210,17 @@ style:
 | POST | `/dramas/import` | 导入工程 ZIP（multipart/form-data，字段名 `file`） |
 | GET | `/dramas/stats` | 统计信息 |
 
+内容类型设置保存在 `dramas.metadata`：
+
+| 字段 | 取值 / 约束 |
+|------|-------------|
+| `content_type` | `short_drama` 或 `topic_video`；旧项目缺省为 `short_drama` |
+| `topic_purpose` | 主题视频使用：`promotion`、`explanation` 或 `science` |
+| `target_episode_duration_sec` | 目标成片时长，10–600 秒，默认 60 秒 |
+| `narrative_style_prompt` | 项目级脚本风格，自由文本，最多 1000 字符 |
+
+已有分集的项目不能修改 `content_type`，`topic_video` 只能保存一集。脚本生成会按内容类型选择独立提示词，并在目标时长、用户风格和事实边界约束下返回相同的分集 JSON 结构，供后续分镜、首尾帧、视频和合成流程复用。
+
 ### 集数（Episode）
 
 | 方法 | 路径 | 说明 |
