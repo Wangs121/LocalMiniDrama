@@ -142,6 +142,12 @@ test('storyboard relations must belong to the same drama and be active', () => {
       [1]
     );
 
+    const booleanRelation = { ...candidate, character_ids: [true] };
+    assert.throws(
+      () => validateCandidate(db, 'storyboard', { dramaId: 7 }, booleanRelation),
+      /无效的 character_ids/
+    );
+
     for (const invalidId of [2, 3, 999]) {
       const invalid = { ...candidate, character_ids: [invalidId] };
       assert.throws(

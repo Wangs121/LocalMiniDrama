@@ -82,8 +82,12 @@ function normalizeText(value) {
 
 function normalizeRelationId(value) {
   if (value === null || value === undefined || value === '') return null;
-  const normalized = Number(value);
-  return Number.isInteger(normalized) && normalized > 0 ? normalized : value;
+  if (Number.isInteger(value) && value > 0) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const normalized = Number(value);
+    if (Number.isSafeInteger(normalized) && normalized > 0) return normalized;
+  }
+  return value;
 }
 
 function normalizeStages(value) {
