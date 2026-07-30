@@ -266,7 +266,15 @@ async function generateText(db, log, serviceType, userPrompt, systemPrompt, opti
   });
   systemPrompt = skillEnhanced.prompt;
   if (options.prompt_skill_stage) log.info('[PromptSkill] composition', skillEnhanced.audit);
-  const { model: preferredModel, temperature = 0.7, json_mode = false, min_max_tokens = null, streamCallback = null, scene_key = null } = options;
+  const {
+    model: preferredModel,
+    temperature = 0.7,
+    json_mode = false,
+    min_max_tokens = null,
+    streamCallback = null,
+    scene_key = null,
+    redact_content_log = false,
+  } = options;
 
   // F2: 若传入 scene_key，优先从 ai_model_map 查找对应的模型路由配置
   let config = null;
@@ -364,7 +372,12 @@ async function generateText(db, log, serviceType, userPrompt, systemPrompt, opti
   if (!content) {
     throw new Error('AI 返回内容为空');
   }
-  log.info('AI raw response received', { model, text_length: content.length, elapsed_ms: elapsedMs, text_preview: content.slice(0, 200) });
+  log.info('AI raw response received', {
+    model,
+    text_length: content.length,
+    elapsed_ms: elapsedMs,
+    text_preview: redact_content_log ? '[redacted]' : content.slice(0, 200),
+  });
   return content;
 }
 
