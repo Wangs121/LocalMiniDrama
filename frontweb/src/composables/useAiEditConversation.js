@@ -116,7 +116,8 @@ export function useAiEditConversation({
   }
 
   function retryLatest() {
-    return send(draftMessage.value)
+    const lastUserMessage = [...messages.value].reverse().find((message) => message?.role === 'user')
+    return send(draftMessage.value || lastUserMessage?.content || '')
   }
 
   async function syncProposalStatus(fields) {

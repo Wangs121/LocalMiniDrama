@@ -98,6 +98,26 @@ test('response is stale when the form changes during a request', async () => {
   assert.equal(state.canApply.value, false)
 })
 
+test('retry reuses the latest user message after a completed response', async () => {
+  const sent = []
+  const api = fakeApi({
+    async send(_type, _id, body) {
+      sent.push(body.message)
+      return successResponse({ message_id: sent.length })
+    },
+  })
+  const state = useAiEditConversation({
+    api,
+    entityType: () => 'character',
+    entityId: () => 10,
+    getSnapshot: () => ({ name: '林夏' }),
+    applyFields() {},
+  })
+  await state.send('改成短发')
+  await state.retryLatest()
+  assert.deepEqual(sent, ['改成短发', '改成短发'])
+})
+
 test('reset before hashing completes prevents the API request and settles send', async () => {
   let sendCalls = 0
   const api = fakeApi({
