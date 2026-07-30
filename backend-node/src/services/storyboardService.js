@@ -1,4 +1,5 @@
 // 分镜：create, update, delete；帧提示词 get/save
+const mediaFreshness = require('./mediaFreshnessService');
 
 /**
  * 将分镜勾选的角色（dramas.characters 表 id）同步到 storyboard_characters（角色库 id），
@@ -87,7 +88,7 @@ function createStoryboard(db, log, req) {
 function updateStoryboard(db, log, id, req) {
   const row = db.prepare('SELECT id FROM storyboards WHERE id = ? AND deleted_at IS NULL').get(Number(id));
   if (!row) return null;
-  const allowed = ['title', 'description', 'location', 'time', 'duration', 'dialogue', 'narration', 'action', 'result', 'atmosphere', 'image_prompt', 'polished_prompt', 'video_prompt', 'scene_id', 'characters', 'composed_image', 'image_url', 'local_path', 'main_panel_idx', 'video_url', 'audio_local_path', 'narration_audio_local_path', 'status', 'shot_type', 'angle', 'angle_h', 'angle_v', 'angle_s', 'movement', 'segment_index', 'segment_title', 'creation_mode', 'universal_segment_text', 'layout_description', 'first_frame_image_id', 'last_frame_image_id', 'last_frame_image_url', 'last_frame_local_path'];
+  const allowed = ['title', 'description', 'location', 'time', 'duration', 'dialogue', 'narration', 'action', 'result', 'atmosphere', 'image_prompt', 'polished_prompt', 'video_prompt', 'scene_id', 'characters', 'composed_image', 'image_url', 'local_path', 'main_panel_idx', 'video_url', 'audio_local_path', 'narration_audio_local_path', 'status', 'shot_type', 'angle', 'angle_h', 'angle_v', 'angle_s', 'movement', 'lighting_style', 'depth_of_field', 'segment_index', 'segment_title', 'creation_mode', 'universal_segment_text', 'layout_description', 'first_frame_image_id', 'last_frame_image_id', 'last_frame_image_url', 'last_frame_local_path'];
   const updates = [];
   const params = [];
   // 前端可能传 character_ids，与 characters 统一：存为 JSON 字符串
@@ -108,6 +109,11 @@ function updateStoryboard(db, log, id, req) {
     }
   }
   if (updates.length === 0 && req.prop_ids === undefined) return getStoryboardById(db, id);
+  mediaFreshness.markForUpdate(db, 'storyboard', id, {
+    ...req,
+    ...(charactersValue !== undefined ? { character_ids: parsedDramaCharIdsForSync } : {}),
+    ...(req.prop_ids !== undefined ? { prop_ids: req.prop_ids } : {}),
+  });
   if (updates.length > 0) {
     params.push(new Date().toISOString(), id);
     db.prepare('UPDATE storyboards SET ' + updates.join(', ') + ', updated_at = ? WHERE id = ?').run(...params);
@@ -178,6 +184,8 @@ function getStoryboardById(db, id) {
     angle_v: r.angle_v ?? null,
     angle_s: r.angle_s ?? null,
     movement: r.movement,
+    lighting_style: r.lighting_style ?? null,
+    depth_of_field: r.depth_of_field ?? null,
     segment_index: r.segment_index ?? 0,
     segment_title: r.segment_title ?? null,
     creation_mode: r.creation_mode === 'universal' ? 'universal' : 'classic',
@@ -194,6 +202,8 @@ function getStoryboardById(db, id) {
     local_path: r.local_path ?? null,
     main_panel_idx: r.main_panel_idx != null ? Number(r.main_panel_idx) : null,
     video_url: r.video_url,
+    image_stale: Boolean(r.image_stale),
+    video_stale: Boolean(r.video_stale),
     audio_local_path: r.audio_local_path ?? null,
     narration_audio_local_path: r.narration_audio_local_path ?? null,
     status: r.status || 'pending',

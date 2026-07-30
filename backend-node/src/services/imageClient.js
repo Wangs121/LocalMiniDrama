@@ -1767,6 +1767,7 @@ function createAndGenerateImage(db, log, opts) {
             throw e;
           }
         }
+        require('./mediaFreshnessService').clear(db, 'character', charIdNum, 'image');
         log.info('Character image updated', { character_id: charIdNum, image_url: result.image_url, local_path: localPath });
       }
       if (sceneIdNum != null) {
@@ -1793,6 +1794,7 @@ function createAndGenerateImage(db, log, opts) {
             throw e;
           }
         }
+        require('./mediaFreshnessService').clear(db, 'scene', sceneIdNum, 'image');
         log.info('Scene image updated', { scene_id: sceneIdNum, image_url: result.image_url, local_path: localPath });
       }
       log.info('Image generation completed', { image_gen_id: imageGenId, local_path: localPath });

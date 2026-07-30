@@ -139,6 +139,7 @@ async function processPropImageGeneration(db, log, taskId, propId, opts) {
       throw e;
     }
   }
+  require('./mediaFreshnessService').clear(db, 'prop', propId, 'image');
 
   taskService.updateTaskResult(db, taskId, {
     image_url: result.image_url,

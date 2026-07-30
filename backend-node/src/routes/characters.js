@@ -4,13 +4,14 @@ const response = require('../response');
 const characterLibraryService = require('../services/characterLibraryService');
 const storageLayout = require('../services/storageLayout');
 const seedance2AssetGuards = require('../utils/seedance2AssetGuards');
+const mediaFreshness = require('../services/mediaFreshnessService');
 
 function routes(db, cfg, log, uploadService) {
   return {
     getOne: (req, res) => {
       try {
         const row = db.prepare(
-          'SELECT id, drama_id, name, role, appearance, description, personality, voice_style, image_url, local_path, polished_prompt, four_view_image_url, identity_anchors, seedance2_asset, seedance2_voice_asset, negative_prompt, updated_at FROM characters WHERE id = ? AND deleted_at IS NULL'
+          'SELECT id, drama_id, name, role, appearance, description, personality, voice_style, image_url, local_path, polished_prompt, four_view_image_url, identity_anchors, seedance2_asset, seedance2_voice_asset, negative_prompt, image_stale, updated_at FROM characters WHERE id = ? AND deleted_at IS NULL'
         ).get(Number(req.params.id));
         if (!row) return response.notFound(res, '角色不存在');
         if (row.seedance2_asset) {
@@ -31,7 +32,7 @@ function routes(db, cfg, log, uploadService) {
         } else {
           row.seedance2_voice_asset = null;
         }
-        response.success(res, { character: row });
+        response.success(res, { character: { ...row, image_stale: Boolean(row.image_stale) } });
       } catch (err) {
         log.error('characters getOne', { error: err.message });
         response.internalError(res, err.message);
@@ -168,6 +169,9 @@ function routes(db, cfg, log, uploadService) {
           image_url: nextImg,
           local_path: nextLp,
         });
+        if (body.ref_image !== undefined) {
+          mediaFreshness.markForUpdate(db, 'character', charIdNum, { ref_image: body.ref_image });
+        }
         // 只有明确传了 image_url 时才更新主图，避免只传 ref_image 时清掉主图
         if (body.image_url !== undefined) {
           const out = characterLibraryService.uploadCharacterImage(db, log, req.params.id, body.image_url, {

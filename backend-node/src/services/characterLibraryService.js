@@ -11,6 +11,7 @@ const jimengMaterialHubService = require('./jimengMaterialHubService');
 const modelArkAssetConfigService = require('./modelArkAssetConfigService');
 const uploadService = require('./uploadService');
 const seedance2AssetGuards = require('../utils/seedance2AssetGuards');
+const mediaFreshness = require('./mediaFreshnessService');
 const {
   appendSourceIdFilters,
   findExistingLibraryItem,
@@ -219,6 +220,7 @@ function applyLibraryItemToCharacter(db, log, characterId, libraryItemId) {
     now,
     Number(characterId)
   );
+  mediaFreshness.clear(db, 'character', characterId, 'image');
   log.info('Library item applied to character', { character_id: characterId, library_item_id: libraryItemId });
   return { ok: true };
 }
@@ -235,6 +237,7 @@ function uploadCharacterImage(db, log, characterId, imageUrl, opts = {}) {
   }
   const now = new Date().toISOString();
   db.prepare('UPDATE characters SET image_url = ?, updated_at = ? WHERE id = ?').run(imageUrl || null, now, Number(characterId));
+  mediaFreshness.clear(db, 'character', characterId, 'image');
   log.info('Character image uploaded', { character_id: characterId });
   return { ok: true };
 }
@@ -326,17 +329,22 @@ function updateCharacter(db, log, characterId, req) {
   if (!drama) return { ok: false, error: 'unauthorized' };
   const updates = [];
   const params = [];
-  if (req.name != null) { updates.push('name = ?'); params.push(req.name); }
-  if (req.role != null) { updates.push('role = ?'); params.push(req.role); }
-  if (req.appearance != null) { updates.push('appearance = ?'); params.push(req.appearance); }
-  if (req.personality != null) { updates.push('personality = ?'); params.push(req.personality); }
-  if (req.description != null) { updates.push('description = ?'); params.push(req.description); }
+  if (req.name !== undefined) { updates.push('name = ?'); params.push(req.name); }
+  if (req.role !== undefined) { updates.push('role = ?'); params.push(req.role); }
+  if (req.appearance !== undefined) { updates.push('appearance = ?'); params.push(req.appearance); }
+  if (req.personality !== undefined) { updates.push('personality = ?'); params.push(req.personality); }
+  if (req.description !== undefined) { updates.push('description = ?'); params.push(req.description); }
+  if (req.voice_style !== undefined) { updates.push('voice_style = ?'); params.push(req.voice_style); }
   if (req.image_url != null) { updates.push('image_url = ?'); params.push(req.image_url); }
   if (req.local_path != null) { updates.push('local_path = ?'); params.push(req.local_path); }
-  if (req.polished_prompt != null) { updates.push('polished_prompt = ?'); params.push(req.polished_prompt); }
-  if (req.stages != null) { updates.push('stages = ?'); params.push(typeof req.stages === 'string' ? req.stages : JSON.stringify(req.stages)); }
+  if (req.polished_prompt !== undefined) { updates.push('polished_prompt = ?'); params.push(req.polished_prompt); }
+  if (req.stages !== undefined) {
+    updates.push('stages = ?');
+    params.push(req.stages === null || typeof req.stages === 'string' ? req.stages : JSON.stringify(req.stages));
+  }
   if (req.negative_prompt !== undefined) { updates.push('negative_prompt = ?'); params.push(req.negative_prompt); }
   if (updates.length === 0) return { ok: true };
+  mediaFreshness.markForUpdate(db, 'character', characterId, req);
   if (req.image_url != null || req.local_path != null) {
     seedance2AssetGuards.markStaleOnCharacterMainImageDrift(db, log, charRow, {
       image_url: req.image_url != null ? req.image_url : charRow.image_url,
@@ -534,6 +542,7 @@ async function generateCharacterPromptOnly(db, log, cfg, characterId, modelName,
   const polishedPrompt = buildFourViewImagePrompt(fourViewDescription, styleEn, styleZh);
 
   // 保存到 characters.polished_prompt
+  mediaFreshness.markForUpdate(db, 'character', characterId, { polished_prompt: polishedPrompt });
   db.prepare('UPDATE characters SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
     polishedPrompt, new Date().toISOString(), Number(characterId)
   );
@@ -599,6 +608,7 @@ async function generateCharacterFourViewImage(db, log, cfg, characterId, modelNa
 
     // 顺带保存，供下次复用
     try {
+      mediaFreshness.markForUpdate(db, 'character', characterId, { polished_prompt: imagePrompt });
       db.prepare('UPDATE characters SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
         imagePrompt, new Date().toISOString(), Number(characterId)
       );
@@ -658,6 +668,7 @@ async function extractAppearanceFromImage(db, log, cfg, characterId) {
     return { ok: false, error: '模型因安全策略拒绝描述图中人物面部特征。建议：①使用 Gemini 模型（限制较少）；②手动填写外貌描述；③上传卡通/插画风格的参考图。' };
   }
 
+  mediaFreshness.markForUpdate(db, 'character', characterId, { appearance });
   db.prepare('UPDATE characters SET appearance = ?, updated_at = ? WHERE id = ?')
     .run(appearance, new Date().toISOString(), Number(characterId));
 

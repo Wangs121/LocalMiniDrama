@@ -393,6 +393,8 @@ function rowToStoryboard(r) {
       local_path: r.local_path ?? null,
       main_panel_idx: r.main_panel_idx != null ? Number(r.main_panel_idx) : null,
       video_url: r.video_url,
+      image_stale: Boolean(r.image_stale),
+      video_stale: Boolean(r.video_stale),
       audio_local_path: r.audio_local_path ?? null,
       narration_audio_local_path: r.narration_audio_local_path ?? null,
       status: r.status || 'pending',
@@ -425,6 +427,7 @@ function rowToCharacter(r) {
     four_view_image_url: r.four_view_image_url || null,
     seedance2_asset: parseJsonColumn(r.seedance2_asset),
     seedance2_voice_asset: parseJsonColumn(r.seedance2_voice_asset),
+    image_stale: Boolean(r.image_stale),
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -446,6 +449,7 @@ function rowToScene(r) {
     ref_image: r.ref_image || null,
     status: r.status || 'pending',
     error_msg: r.error_msg,
+    image_stale: Boolean(r.image_stale),
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -465,6 +469,7 @@ function rowToProp(r) {
     ref_image: r.ref_image || null,
     negative_prompt: r.negative_prompt || null,
     error_msg: r.error_msg,
+    image_stale: Boolean(r.image_stale),
     created_at: r.created_at,
     updated_at: r.updated_at,
   };

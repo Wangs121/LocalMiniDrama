@@ -1476,6 +1476,7 @@ async function processImageGeneration(db, log, imageGenId) {
           throw e;
         }
       }
+      require('./mediaFreshnessService').clear(db, 'scene', row.scene_id, 'image');
     }
     log.info('[图生] ✓ 完成', { id: imageGenId, local_path: localPath, total_elapsed: elapsed() });
 

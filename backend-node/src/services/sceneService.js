@@ -3,6 +3,7 @@ const imageClient = require('./imageClient');
 const aiClient = require('./aiClient');
 const promptI18n = require('./promptI18n');
 const { mergeCfgStyleWithDrama } = require('../utils/dramaStyleMerge');
+const mediaFreshness = require('./mediaFreshnessService');
 
 function applySceneStyleOverride(cfg, styleOverride) {
   const o = (styleOverride || '').toString().trim();
@@ -22,16 +23,18 @@ function updateScene(db, log, sceneId, req) {
   if (!row) return { ok: false, error: 'scene not found' };
   const updates = [];
   const params = [];
-  if (req.location != null) { updates.push('location = ?'); params.push(req.location); }
-  if (req.time != null) { updates.push('time = ?'); params.push(req.time); }
-  if (req.prompt != null) { updates.push('prompt = ?'); params.push(req.prompt); }
-  if (req.polished_prompt != null) { updates.push('polished_prompt = ?'); params.push(req.polished_prompt); }
-  if (req.polished_prompt_single != null) { updates.push('polished_prompt_single = ?'); params.push(req.polished_prompt_single); }
+  if (req.location !== undefined) { updates.push('location = ?'); params.push(req.location); }
+  if (req.time !== undefined) { updates.push('time = ?'); params.push(req.time); }
+  if (req.prompt !== undefined) { updates.push('prompt = ?'); params.push(req.prompt); }
+  if (req.polished_prompt !== undefined) { updates.push('polished_prompt = ?'); params.push(req.polished_prompt); }
+  if (req.polished_prompt_single !== undefined) { updates.push('polished_prompt_single = ?'); params.push(req.polished_prompt_single); }
+  if (req.negative_prompt !== undefined) { updates.push('negative_prompt = ?'); params.push(req.negative_prompt); }
   if (req.image_url != null) { updates.push('image_url = ?'); params.push(req.image_url); }
   if (req.local_path !== undefined) { updates.push('local_path = ?'); params.push(req.local_path); }
   if (req.extra_images !== undefined) { updates.push('extra_images = ?'); params.push(req.extra_images ?? null); }
   if (req.ref_image !== undefined) { updates.push('ref_image = ?'); params.push(req.ref_image ?? null); }
   if (updates.length === 0) return { ok: true };
+  mediaFreshness.markForUpdate(db, 'scene', sceneId, req);
   params.push(new Date().toISOString(), sceneId);
   db.prepare('UPDATE scenes SET ' + updates.join(', ') + ', updated_at = ? WHERE id = ?').run(...params);
   log.info('Scene updated', { scene_id: sceneId });
@@ -42,6 +45,7 @@ function updateScenePrompt(db, log, sceneId, req) {
   const row = db.prepare('SELECT id FROM scenes WHERE id = ? AND deleted_at IS NULL').get(Number(sceneId));
   if (!row) return { ok: false, error: 'scene not found' };
   const prompt = req.prompt != null ? req.prompt : '';
+  mediaFreshness.markForUpdate(db, 'scene', sceneId, { prompt });
   db.prepare('UPDATE scenes SET prompt = ?, updated_at = ? WHERE id = ?').run(prompt, new Date().toISOString(), Number(sceneId));
   log.info('Scene prompt updated', { scene_id: sceneId });
   return { ok: true };
@@ -117,10 +121,13 @@ function listByDramaId(db, dramaId) {
     prompt: row.prompt,
     polished_prompt: row.polished_prompt || null,
     polished_prompt_single: row.polished_prompt_single || null,
+    negative_prompt: row.negative_prompt || null,
     description: row.description || null,
     image_url: row.image_url,
     local_path: row.local_path,
     extra_images: row.extra_images || null,
+    ref_image: row.ref_image || null,
+    image_stale: Boolean(row.image_stale),
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -132,14 +139,18 @@ function getSceneById(db, id) {
   return row ? {
     id: row.id,
     drama_id: row.drama_id,
+    episode_id: row.episode_id,
     location: row.location,
     time: row.time,
     prompt: row.prompt,
     polished_prompt: row.polished_prompt || null,
     polished_prompt_single: row.polished_prompt_single || null,
+    negative_prompt: row.negative_prompt || null,
     image_url: row.image_url,
     local_path: row.local_path,
     extra_images: row.extra_images || null,
+    ref_image: row.ref_image || null,
+    image_stale: Boolean(row.image_stale),
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at
@@ -242,6 +253,7 @@ async function generateScenePromptOnly(db, log, cfg, sceneId, modelName, style) 
   const styleZh = (mergedCfg.style.default_style_zh || '').trim();
   const polishedPrompt = buildSceneFourViewImagePrompt(fourViewDescription.trim(), styleEn, styleZh);
 
+  mediaFreshness.markForUpdate(db, 'scene', sceneId, { polished_prompt: polishedPrompt });
   db.prepare('UPDATE scenes SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
     polishedPrompt, new Date().toISOString(), Number(sceneId)
   );
@@ -297,6 +309,7 @@ async function generateSceneSinglePromptOnly(db, log, cfg, sceneId, modelName, s
   const styleZh = (mergedCfg.style.default_style_zh || '').trim();
   const polishedPrompt = buildSceneSingleImagePrompt(singleViewDescription.trim(), styleEn, styleZh);
 
+  mediaFreshness.markForUpdate(db, 'scene', sceneId, { polished_prompt_single: polishedPrompt });
   db.prepare('UPDATE scenes SET polished_prompt_single = ?, updated_at = ? WHERE id = ?').run(
     polishedPrompt, new Date().toISOString(), Number(sceneId)
   );
@@ -358,6 +371,7 @@ async function generateSceneFourViewImage(db, log, cfg, sceneId, modelName, styl
 
     // 顺带保存，供下次复用
     try {
+      mediaFreshness.markForUpdate(db, 'scene', sceneId, { polished_prompt: imagePrompt });
       db.prepare('UPDATE scenes SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
         imagePrompt, new Date().toISOString(), Number(sceneId)
       );
@@ -435,6 +449,7 @@ async function generateSceneSingleImage(db, log, cfg, sceneId, modelName, style)
     imagePrompt = buildSceneSingleImagePrompt(singleViewDescription, styleEn, styleZh);
 
     try {
+      mediaFreshness.markForUpdate(db, 'scene', sceneId, { polished_prompt_single: imagePrompt });
       db.prepare('UPDATE scenes SET polished_prompt_single = ?, updated_at = ? WHERE id = ?').run(
         imagePrompt, new Date().toISOString(), Number(sceneId)
       );
@@ -487,6 +502,7 @@ async function extractSceneFromImage(db, log, cfg, sceneId) {
     return { ok: false, error: errMsg };
   }
 
+  mediaFreshness.markForUpdate(db, 'scene', sceneId, { prompt });
   db.prepare('UPDATE scenes SET prompt = ?, updated_at = ? WHERE id = ?')
     .run(prompt, new Date().toISOString(), Number(sceneId));
 

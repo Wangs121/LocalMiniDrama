@@ -237,6 +237,7 @@ async function finalizeSuccessfulVideo(db, log, videoGenId, row, rowForAspect, v
       db.prepare('UPDATE storyboards SET video_url = ?, local_path = ?, updated_at = ? WHERE id = ?').run(
         videoUrl, localPath, now, row.storyboard_id
       );
+      require('./mediaFreshnessService').clear(db, 'storyboard', row.storyboard_id, 'video');
       log.info('Updated storyboard video' + (logLabel ? ` (${logLabel})` : ''), {
         storyboard_id: row.storyboard_id,
         video_url: videoUrl,

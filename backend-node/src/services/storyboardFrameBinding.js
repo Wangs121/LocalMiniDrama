@@ -22,6 +22,7 @@ function bindStoryboardFrameImage(db, storyboardId, frameType, imageGenId, image
       `UPDATE storyboards SET last_frame_image_url = ?, last_frame_local_path = ?, last_frame_image_id = ?, updated_at = ?
        WHERE id = ? AND deleted_at IS NULL`
     ).run(url, lp, igId, now, sid);
+    require('./mediaFreshnessService').clear(db, 'storyboard', sid, 'image');
     try { require('../logger').info?.('[绑定] 尾帧图片已正确绑定到 storyboards.last_frame_*（不会污染主图或历史）', { storyboard_id: sid, image_gen_id: igId }); } catch (_) {}
     return;
   }
@@ -30,6 +31,7 @@ function bindStoryboardFrameImage(db, storyboardId, frameType, imageGenId, image
     `UPDATE storyboards SET image_url = ?, local_path = ?, first_frame_image_id = ?, updated_at = ?
      WHERE id = ? AND deleted_at IS NULL`
   ).run(url, lp, igId, now, sid);
+  require('./mediaFreshnessService').clear(db, 'storyboard', sid, 'image');
 }
 
 module.exports = { bindStoryboardFrameImage };

@@ -9,6 +9,7 @@ const promptI18n = require('../services/promptI18n');
 const angleService = require('../services/angleService');
 const { buildUniversalSegmentUserPromptBundle } = require('../services/universalSegmentPromptBundle');
 const { normalizeUniversalSegmentShotDurations } = require('../services/universalSegmentDurationNormalize');
+const mediaFreshness = require('../services/mediaFreshnessService');
 
 /** 润色接口：邻镜结构化摘要（含全能片段与其它提示词字段） */
 function formatNeighborShotPolishContext(row) {
@@ -532,6 +533,7 @@ function routes(db, log) {
 
         const polished = polishedPrompt.trim();
         const nowIso = new Date().toISOString();
+        mediaFreshness.markForUpdate(db, 'storyboard', sbId, { polished_prompt: polished });
         db.prepare('UPDATE storyboards SET polished_prompt = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(
           polished, nowIso, sbId
         );
@@ -586,6 +588,7 @@ function routes(db, log) {
         text = normalizeUniversalSegmentShotDurations(text, durationLabel, durationSec);
         text = normalizeUniversalSegmentAtImageSpacing(text);
         const nowIso = new Date().toISOString();
+        mediaFreshness.markForUpdate(db, 'storyboard', sbId, { universal_segment_text: text });
         db.prepare('UPDATE storyboards SET universal_segment_text = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(
           text,
           nowIso,
@@ -653,6 +656,7 @@ function routes(db, log) {
       text = normalizeUniversalSegmentShotDurations(text, durationLabel, durationSec);
       text = normalizeUniversalSegmentAtImageSpacing(text);
       const nowIso = new Date().toISOString();
+      mediaFreshness.markForUpdate(db, 'storyboard', sbId, { universal_segment_text: text });
       db.prepare('UPDATE storyboards SET universal_segment_text = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(
         text,
         nowIso,
@@ -779,6 +783,7 @@ function routes(db, log) {
       text = normalizeUniversalSegmentShotDurations(text, durationLabel, durationSec);
       text = normalizeUniversalSegmentAtImageSpacing(text);
       const nowIso = new Date().toISOString();
+      mediaFreshness.markForUpdate(db, 'storyboard', sbId, { universal_segment_text: text });
       db.prepare('UPDATE storyboards SET universal_segment_text = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(
         text,
         nowIso,
@@ -1038,6 +1043,7 @@ function routes(db, log) {
       }
       const text = String(finalRaw).trim();
       const nowIso = new Date().toISOString();
+      mediaFreshness.markForUpdate(db, 'storyboard', sbId, { video_prompt: text });
       db.prepare('UPDATE storyboards SET video_prompt = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(
         text,
         nowIso,

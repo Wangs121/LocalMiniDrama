@@ -1,6 +1,7 @@
 const aiClient = require('./aiClient');
 const promptI18n = require('./promptI18n');
 const { mergeCfgStyleWithDrama } = require('../utils/dramaStyleMerge');
+const mediaFreshness = require('./mediaFreshnessService');
 
 function listByDramaId(db, dramaId) {
   const rows = db.prepare(
@@ -9,6 +10,7 @@ function listByDramaId(db, dramaId) {
   return rows.map((r) => ({
     id: r.id,
     drama_id: r.drama_id,
+    episode_id: r.episode_id,
     name: r.name,
     type: r.type,
     description: r.description,
@@ -18,6 +20,7 @@ function listByDramaId(db, dramaId) {
     local_path: r.local_path,
     extra_images: r.extra_images || null,
     ref_image: r.ref_image || null,
+    image_stale: Boolean(r.image_stale),
     created_at: r.created_at,
     updated_at: r.updated_at,
   }));
@@ -52,6 +55,7 @@ function getById(db, id) {
   return {
     id: r.id,
     drama_id: r.drama_id,
+    episode_id: r.episode_id,
     name: r.name,
     type: r.type,
     description: r.description,
@@ -61,6 +65,7 @@ function getById(db, id) {
     local_path: r.local_path,
     extra_images: r.extra_images || null,
     ref_image: r.ref_image || null,
+    image_stale: Boolean(r.image_stale),
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -71,16 +76,17 @@ function update(db, log, id, updates) {
   if (!existing) return null;
   const set = [];
   const params = [];
-  if (updates.name != null) { set.push('name = ?'); params.push(updates.name); }
-  if (updates.type != null) { set.push('type = ?'); params.push(updates.type); }
-  if (updates.description != null) { set.push('description = ?'); params.push(updates.description); }
-  if (updates.prompt != null) { set.push('prompt = ?'); params.push(updates.prompt); }
+  if (updates.name !== undefined) { set.push('name = ?'); params.push(updates.name); }
+  if (updates.type !== undefined) { set.push('type = ?'); params.push(updates.type); }
+  if (updates.description !== undefined) { set.push('description = ?'); params.push(updates.description); }
+  if (updates.prompt !== undefined) { set.push('prompt = ?'); params.push(updates.prompt); }
   if (updates.negative_prompt !== undefined) { set.push('negative_prompt = ?'); params.push(updates.negative_prompt); }
   if (updates.image_url != null) { set.push('image_url = ?'); params.push(updates.image_url); }
   if (updates.local_path !== undefined) { set.push('local_path = ?'); params.push(updates.local_path ?? null); }
   if (updates.extra_images !== undefined) { set.push('extra_images = ?'); params.push(updates.extra_images ?? null); }
   if (updates.ref_image !== undefined) { set.push('ref_image = ?'); params.push(updates.ref_image ?? null); }
   if (set.length === 0) return existing;
+  mediaFreshness.markForUpdate(db, 'prop', id, updates);
   params.push(new Date().toISOString(), id);
   db.prepare('UPDATE props SET ' + set.join(', ') + ', updated_at = ? WHERE id = ?').run(...params);
   log.info('Prop updated', { prop_id: id });
@@ -167,6 +173,7 @@ async function generatePropPromptOnly(db, log, cfg, propId, modelName, style) {
   }
 
   if (generatedPrompt && generatedPrompt.trim()) {
+    mediaFreshness.markForUpdate(db, 'prop', propId, { prompt: generatedPrompt.trim() });
     db.prepare('UPDATE props SET prompt = ?, updated_at = ? WHERE id = ?').run(
       generatedPrompt.trim(), new Date().toISOString(), Number(propId)
     );
@@ -205,6 +212,7 @@ async function extractPropFromImage(db, log, cfg, propId) {
     return { ok: false, error: errMsg };
   }
 
+  mediaFreshness.markForUpdate(db, 'prop', propId, { description });
   db.prepare('UPDATE props SET description = ?, updated_at = ? WHERE id = ?')
     .run(description, new Date().toISOString(), Number(propId));
 
