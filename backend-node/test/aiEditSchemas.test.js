@@ -122,6 +122,20 @@ test('character stages are structured and bounded', () => {
     () => validateCandidate(null, 'character', { dramaId: 1 }, nonIntegerRange),
     /stages/
   );
+
+  const maximumAppearance = characterCandidate();
+  maximumAppearance.stages = [{ episode_range: [1, 1], appearance: 'x'.repeat(12000) }];
+  assert.equal(
+    validateCandidate(null, 'character', { dramaId: 1 }, maximumAppearance).stages[0].appearance.length,
+    12000
+  );
+
+  const overlongAppearance = characterCandidate();
+  overlongAppearance.stages = [{ episode_range: [1, 1], appearance: 'x'.repeat(12001) }];
+  assert.throws(
+    () => validateCandidate(null, 'character', { dramaId: 1 }, overlongAppearance),
+    /stages/
+  );
 });
 
 test('storyboard relations must belong to the same drama and be active', () => {
@@ -145,6 +159,12 @@ test('storyboard relations must belong to the same drama and be active', () => {
     const booleanRelation = { ...candidate, character_ids: [true] };
     assert.throws(
       () => validateCandidate(db, 'storyboard', { dramaId: 7 }, booleanRelation),
+      /无效的 character_ids/
+    );
+
+    const unsafeRelation = { ...candidate, character_ids: [Number.MAX_SAFE_INTEGER + 1] };
+    assert.throws(
+      () => validateCandidate(null, 'storyboard', { dramaId: 7 }, unsafeRelation),
       /无效的 character_ids/
     );
 

@@ -11,7 +11,7 @@ const ADAPTERS = {
       voice_style: { kind: 'text', max: 1000, media: [] },
       polished_prompt: { kind: 'text', max: 30000, media: ['image'] },
       negative_prompt: { kind: 'text', max: 5000, media: ['image'] },
-      stages: { kind: 'stages', maxItems: 50, media: ['image'] },
+      stages: { kind: 'stages', maxItems: 50, appearanceMax: 12000, media: ['image'] },
     },
   },
   scene: {
@@ -82,7 +82,7 @@ function normalizeText(value) {
 
 function normalizeRelationId(value) {
   if (value === null || value === undefined || value === '') return null;
-  if (Number.isInteger(value) && value > 0) return value;
+  if (Number.isSafeInteger(value) && value > 0) return value;
   if (typeof value === 'string' && /^\d+$/.test(value)) {
     const normalized = Number(value);
     if (Number.isSafeInteger(normalized) && normalized > 0) return normalized;
@@ -159,7 +159,8 @@ function validateStages(field, definition, value) {
       || !range.every((item) => Number.isInteger(item) && item > 0)
       || range[0] > range[1]
       || typeof stage.appearance !== 'string'
-      || !stage.appearance) {
+      || !stage.appearance
+      || stage.appearance.length > definition.appearanceMax) {
       throw new Error(`无效的 ${field}`);
     }
   }
@@ -167,11 +168,11 @@ function validateStages(field, definition, value) {
 
 function validateRelationIds(db, field, definition, meta, values) {
   const ids = definition.kind === 'relation' ? (values === null ? [] : [values]) : values;
-  if (!ids.every((id) => Number.isInteger(id) && id > 0)) throw new Error(`无效的 ${field}`);
+  if (!ids.every((id) => Number.isSafeInteger(id) && id > 0)) throw new Error(`无效的 ${field}`);
   if (definition.maxItems && ids.length > definition.maxItems) throw new Error(`无效的 ${field}`);
   if (!db || ids.length === 0) return;
   const dramaId = Number(meta && meta.dramaId);
-  if (!Number.isInteger(dramaId) || dramaId <= 0) throw new Error('无效的 dramaId');
+  if (!Number.isSafeInteger(dramaId) || dramaId <= 0) throw new Error('无效的 dramaId');
   const placeholders = ids.map(() => '?').join(', ');
   const rows = db.prepare(
     `SELECT id FROM ${definition.table}
