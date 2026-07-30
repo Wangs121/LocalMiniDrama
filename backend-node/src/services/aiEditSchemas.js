@@ -92,9 +92,6 @@ function normalizeStages(value) {
     if (!stage || typeof stage !== 'object' || Array.isArray(stage)) return stage;
     return {
       ...stage,
-      episode_range: Array.isArray(stage.episode_range)
-        ? stage.episode_range.map((item) => Number(item))
-        : stage.episode_range,
       appearance: normalizeText(stage.appearance),
     };
   });

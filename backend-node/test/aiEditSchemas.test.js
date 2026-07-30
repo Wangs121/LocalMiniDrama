@@ -115,6 +115,13 @@ test('character stages are structured and bounded', () => {
   const invalid = characterCandidate();
   invalid.stages = [{ episode_range: [3, 1], appearance: '短发' }];
   assert.throws(() => validateCandidate(null, 'character', { dramaId: 1 }, invalid), /stages/);
+
+  const nonIntegerRange = characterCandidate();
+  nonIntegerRange.stages = [{ episode_range: [true, '2'], appearance: 'stage' }];
+  assert.throws(
+    () => validateCandidate(null, 'character', { dramaId: 1 }, nonIntegerRange),
+    /stages/
+  );
 });
 
 test('storyboard relations must belong to the same drama and be active', () => {
