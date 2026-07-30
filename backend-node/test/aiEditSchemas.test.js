@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
+const aiEditSchemas = require('../src/services/aiEditSchemas');
 const {
   emptyCandidate,
   normalizeSnapshot,
@@ -10,7 +11,21 @@ const {
   stableStringify,
   snapshotHash,
   mediaImpactForChanges,
-} = require('../src/services/aiEditSchemas');
+} = aiEditSchemas;
+
+test('exports only the public AI edit schema contract', () => {
+  assert.deepEqual(Object.keys(aiEditSchemas).sort(), [
+    'diffSnapshots',
+    'emptyCandidate',
+    'getAdapter',
+    'mediaImpactForChanges',
+    'normalizeSnapshot',
+    'snapshotHash',
+    'stableStringify',
+    'validateCandidate',
+    'validateEnvelope',
+  ]);
+});
 
 function characterCandidate() {
   return {

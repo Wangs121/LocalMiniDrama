@@ -291,7 +291,6 @@ function mediaImpactForChanges(entityType, fieldNames) {
 }
 
 module.exports = {
-  ADAPTERS,
   getAdapter,
   emptyCandidate,
   normalizeSnapshot,
