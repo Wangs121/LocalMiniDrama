@@ -177,6 +177,8 @@ function ensureAllColumns(database) {
     { name: 'last_frame_image_id',  type: 'INTEGER' },
     { name: 'last_frame_image_url', type: 'TEXT' },
     { name: 'last_frame_local_path', type: 'TEXT' },
+    { name: 'image_stale',       type: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'video_stale',       type: 'INTEGER NOT NULL DEFAULT 0' },
     { name: 'status',            type: 'TEXT DEFAULT \'draft\'' },
     { name: 'created_at',        type: 'TEXT' },
     { name: 'updated_at',        type: 'TEXT' },
@@ -207,6 +209,7 @@ function ensureAllColumns(database) {
     { name: 'seedance2_asset', type: 'TEXT' },   // JSON: 即梦/Seedance2 素材库认证 hub_asset_id / asset_url 等
     { name: 'seedance2_voice_asset', type: 'TEXT' }, // JSON: Seedance 2.0 音色参考音频（仅 SD2 模型有效）
     { name: 'negative_prompt', type: 'TEXT' },
+    { name: 'image_stale', type: 'INTEGER NOT NULL DEFAULT 0' },
     { name: 'created_at',        type: 'TEXT' },
     { name: 'updated_at',        type: 'TEXT' },
     { name: 'deleted_at',        type: 'TEXT' },
@@ -220,11 +223,13 @@ function ensureAllColumns(database) {
     { name: 'time',             type: 'TEXT' },
     { name: 'prompt',           type: 'TEXT' },
     { name: 'polished_prompt',  type: 'TEXT' },  // 文字AI润色后的完整四视图图片提示词，生图时直接使用
+    { name: 'polished_prompt_single', type: 'TEXT' },
     { name: 'image_url',        type: 'TEXT' },
     { name: 'local_path',       type: 'TEXT' },
     { name: 'extra_images',     type: 'TEXT' },
     { name: 'ref_image',        type: 'TEXT' },  // 用户上传的参考图（本地相对路径或 URL）
     { name: 'negative_prompt',  type: 'TEXT' },
+    { name: 'image_stale',      type: 'INTEGER NOT NULL DEFAULT 0' },
     { name: 'storyboard_count', type: 'INTEGER DEFAULT 0' },
     { name: 'error_msg',        type: 'TEXT' },
     { name: 'status',           type: 'TEXT DEFAULT \'draft\'' },
@@ -246,6 +251,7 @@ function ensureAllColumns(database) {
     { name: 'extra_images', type: 'TEXT' },
     { name: 'ref_image',    type: 'TEXT' },  // 用户上传的参考图（本地相对路径或 URL）
     { name: 'negative_prompt', type: 'TEXT' },
+    { name: 'image_stale', type: 'INTEGER NOT NULL DEFAULT 0' },
     { name: 'error_msg',    type: 'TEXT' },
     { name: 'created_at',   type: 'TEXT' },
     { name: 'updated_at',   type: 'TEXT' },
@@ -517,6 +523,67 @@ function ensureAllColumns(database) {
       value      TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT ''
     )`);
+  } catch (_) {}
+
+  // --- ai_edit_conversations / ai_edit_messages ---
+  try {
+    database.exec(`CREATE TABLE IF NOT EXISTS ai_edit_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL CHECK (entity_type IN ('character', 'scene', 'prop', 'storyboard')),
+      entity_id INTEGER NOT NULL,
+      drama_id INTEGER NOT NULL,
+      episode_id INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (entity_type, entity_id)
+    )`);
+    database.exec(`CREATE TABLE IF NOT EXISTS ai_edit_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      reply_to_message_id INTEGER,
+      client_request_id TEXT,
+      role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+      content TEXT NOT NULL DEFAULT '',
+      base_snapshot_hash TEXT,
+      candidate_json TEXT,
+      diff_json TEXT,
+      proposal_status TEXT,
+      selected_fields_json TEXT,
+      request_status TEXT NOT NULL DEFAULT 'completed' CHECK (request_status IN ('pending', 'completed', 'failed')),
+      error_code TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (conversation_id) REFERENCES ai_edit_conversations(id)
+    )`);
+  } catch (_) {}
+  ensureColumns(database, 'ai_edit_conversations', [
+    { name: 'entity_type', type: "TEXT NOT NULL DEFAULT 'character'" },
+    { name: 'entity_id', type: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'drama_id', type: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'episode_id', type: 'INTEGER' },
+    { name: 'created_at', type: "TEXT NOT NULL DEFAULT ''" },
+    { name: 'updated_at', type: "TEXT NOT NULL DEFAULT ''" },
+  ]);
+  ensureColumns(database, 'ai_edit_messages', [
+    { name: 'conversation_id', type: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'reply_to_message_id', type: 'INTEGER' },
+    { name: 'client_request_id', type: 'TEXT' },
+    { name: 'role', type: "TEXT NOT NULL DEFAULT 'user'" },
+    { name: 'content', type: "TEXT NOT NULL DEFAULT ''" },
+    { name: 'base_snapshot_hash', type: 'TEXT' },
+    { name: 'candidate_json', type: 'TEXT' },
+    { name: 'diff_json', type: 'TEXT' },
+    { name: 'proposal_status', type: 'TEXT' },
+    { name: 'selected_fields_json', type: 'TEXT' },
+    { name: 'request_status', type: "TEXT NOT NULL DEFAULT 'completed'" },
+    { name: 'error_code', type: 'TEXT' },
+    { name: 'created_at', type: "TEXT NOT NULL DEFAULT ''" },
+  ]);
+  try {
+    database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_edit_message_request
+      ON ai_edit_messages (conversation_id, client_request_id)
+      WHERE client_request_id IS NOT NULL`);
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_ai_edit_messages_conversation
+      ON ai_edit_messages (conversation_id, id)`);
   } catch (_) {}
 }
 
