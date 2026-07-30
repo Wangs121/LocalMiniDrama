@@ -20,6 +20,9 @@ request.interceptors.response.use(
     return Promise.reject(new Error(res.error?.message || '请求失败'))
   },
   (error) => {
+    if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+      return Promise.reject(error)
+    }
     // 提取后端实际错误信息（优先 API 返回的 message，而非 axios 通用 "status code 500"）
     const backendMsg = error.response?.data?.error?.message
     const msg = backendMsg || error.message || '网络错误'
