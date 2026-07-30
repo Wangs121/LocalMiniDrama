@@ -22,6 +22,7 @@ const audioRoutes = require('./audio');
 const promptOverridesRoutes = require('./promptOverrides');
 const sceneModelMapRoutes = require('./sceneModelMap');
 const promptSkillRoutes = require('./promptSkills');
+const aiEditRoutes = require('./aiEdits');
 
 function setupRouter(cfg, db, log) {
   const r = express.Router();
@@ -33,6 +34,7 @@ function setupRouter(cfg, db, log) {
   const stub = stubRoutes(db, cfg, log);
   const sceneModelMap = sceneModelMapRoutes(db, log);
   const promptSkills = promptSkillRoutes(db);
+  const aiEdits = aiEditRoutes(db, cfg, log);
   
   const uploadService = require('../services/uploadService');
   const charLibrary = characterLibraryRoutes(db, cfg, log);
@@ -49,6 +51,12 @@ function setupRouter(cfg, db, log) {
   const assets = assetRoutes(db, log);
   const audio = audioRoutes(db, log, cfg);
   const promptOverrides = promptOverridesRoutes.routes(db, log);
+
+  // ---------- object-level AI editing ----------
+  r.get('/ai-edits/:entity_type/:entity_id', aiEdits.get);
+  r.post('/ai-edits/:entity_type/:entity_id/messages', aiEdits.send);
+  r.patch('/ai-edits/:entity_type/:entity_id/proposals/:message_id', aiEdits.updateProposal);
+  r.delete('/ai-edits/:entity_type/:entity_id/messages', aiEdits.clear);
 
   // ---------- dramas ----------
   r.get('/dramas', drama.listDramas);
