@@ -230,4 +230,31 @@ describe('AI edit persistence migration', () => {
       db.close();
     }
   });
+
+  it('fails recovery when the idempotency index cannot be created', () => {
+    const db = new Database(':memory:');
+    const originalExistsSync = fs.existsSync;
+    try {
+      db.exec(`CREATE TABLE ai_edit_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL,
+        client_request_id TEXT
+      );
+      INSERT INTO ai_edit_messages (conversation_id, client_request_id) VALUES (1, 'duplicate');
+      INSERT INTO ai_edit_messages (conversation_id, client_request_id) VALUES (1, 'duplicate');`);
+      fs.existsSync = (candidate) => (
+        path.resolve(candidate) === path.resolve(path.join(__dirname, '..', 'migrations'))
+          ? false
+          : originalExistsSync(candidate)
+      );
+
+      assert.throws(
+        () => runMigrationsAndEnsure(db),
+        /UNIQUE constraint failed/
+      );
+    } finally {
+      fs.existsSync = originalExistsSync;
+      db.close();
+    }
+  });
 });

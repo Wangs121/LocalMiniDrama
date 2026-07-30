@@ -578,13 +578,11 @@ function ensureAllColumns(database) {
     { name: 'error_code', type: 'TEXT' },
     { name: 'created_at', type: "TEXT NOT NULL DEFAULT ''" },
   ]);
-  try {
-    database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_edit_message_request
-      ON ai_edit_messages (conversation_id, client_request_id)
-      WHERE client_request_id IS NOT NULL`);
-    database.exec(`CREATE INDEX IF NOT EXISTS idx_ai_edit_messages_conversation
-      ON ai_edit_messages (conversation_id, id)`);
-  } catch (_) {}
+  database.exec(`CREATE INDEX IF NOT EXISTS idx_ai_edit_messages_conversation
+    ON ai_edit_messages (conversation_id, id)`);
+  database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_edit_message_request
+    ON ai_edit_messages (conversation_id, client_request_id)
+    WHERE client_request_id IS NOT NULL`);
 }
 
 /** 对已打开的 database 执行迁移与兜底补列（供 app 启动时调用） */
