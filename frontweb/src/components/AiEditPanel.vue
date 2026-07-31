@@ -30,13 +30,22 @@
       <div v-if="loading && messages.length === 0" class="ai-edit-empty">正在加载...</div>
       <div v-else-if="messages.length === 0" class="ai-edit-empty">暂无对话</div>
       <article
-        v-for="message in messages"
-        :key="message.id || `${message.role}-${message.content}`"
+        v-for="(message, index) in messages"
+        :key="messageKey(message, index)"
         class="ai-edit-message"
         :class="`is-${message.role}`"
       >
         <span class="ai-edit-message-role">{{ message.role === 'user' ? '你' : 'AI' }}</span>
-        <p>{{ message.content }}</p>
+        <p v-if="message.role === 'user'">{{ message.content }}</p>
+        <template v-else-if="message.role === 'assistant'">
+          <div class="ai-edit-reply-summary">
+            <span>{{ message.request_status === 'failed' ? 'AI 回复失败' : 'AI 已回复' }}</span>
+            <el-button text type="primary" @click="toggleReply(message, index)">
+              {{ replyExpanded(message, index) ? '收起 AI 回复' : '查看 AI 回复' }}
+            </el-button>
+          </div>
+          <p v-if="replyExpanded(message, index)" class="ai-edit-reply-content">{{ message.content }}</p>
+        </template>
       </article>
 
       <div v-if="error" class="ai-edit-error" role="alert">{{ error }}</div>
@@ -70,6 +79,15 @@
           </el-checkbox-group>
         </template>
         <div v-else class="ai-edit-empty">这次建议没有字段变化</div>
+        <div class="ai-edit-proposal-actions">
+          <el-button
+            v-if="!latestProposal.stale"
+            :disabled="!canApply"
+            type="primary"
+            @click="applySelection"
+          >应用所选</el-button>
+          <el-button :disabled="sending" @click="discardProposal">放弃建议</el-button>
+        </div>
       </section>
     </div>
 
@@ -83,15 +101,6 @@
         :disabled="!canSend"
       />
       <div class="ai-edit-actions">
-        <div class="ai-edit-proposal-actions">
-          <el-button
-            v-if="latestProposal && !latestProposal.stale"
-            :disabled="!canApply"
-            type="primary"
-            @click="applySelection"
-          >应用所选</el-button>
-          <el-button v-if="latestProposal" :disabled="sending" @click="discardProposal">放弃建议</el-button>
-        </div>
         <el-button
           type="primary"
           :icon="Promotion"
@@ -108,7 +117,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MoreFilled, Promotion, Refresh } from '@element-plus/icons-vue'
 import { aiEditsAPI } from '@/api/aiEdits.js'
@@ -177,6 +186,25 @@ const {
 } = conversation
 
 const canClear = computed(() => !sending.value && !remotePending.value && messages.value.length > 0)
+const expandedReplyIds = ref(new Set())
+
+function messageKey(message, index) {
+  return message.id != null
+    ? `message-${message.id}`
+    : `message-${message.client_request_id || message.created_at || `${message.role}-${index}`}`
+}
+
+function replyExpanded(message, index) {
+  return expandedReplyIds.value.has(messageKey(message, index))
+}
+
+function toggleReply(message, index) {
+  const key = messageKey(message, index)
+  const next = new Set(expandedReplyIds.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedReplyIds.value = next
+}
 
 function displayValue(field, value) {
   return formatFieldValue(props.entityType, field, value, props.relationOptions)
@@ -284,6 +312,24 @@ defineExpose({ load, reset })
   line-height: 1.6;
 }
 
+.ai-edit-reply-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.ai-edit-reply-content {
+  max-height: 240px;
+  margin-top: 8px !important;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+}
+
 .ai-edit-error,
 .ai-edit-stale {
   color: var(--el-color-danger);
@@ -338,12 +384,14 @@ defineExpose({ load, reset })
 }
 
 .ai-edit-actions {
+  justify-content: flex-end;
   margin-top: 8px;
 }
 
 .ai-edit-proposal-actions {
   display: flex;
   gap: 8px;
+  margin-top: 12px;
   flex-wrap: wrap;
 }
 

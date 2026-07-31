@@ -19,3 +19,38 @@ test('AI edit panel has bounded message and composer dimensions', async () => {
   assert.match(source, /overflow-y:\s*auto/)
   assert.match(source, /word-break:\s*break-word/)
 })
+
+test('AI edit panel collapses assistant replies and prioritizes proposal field changes', async () => {
+  const source = await readFile(new URL('../src/components/AiEditPanel.vue', import.meta.url), 'utf8')
+  const proposal = source.match(/<section v-if="latestProposal"[\s\S]*?<\/section>/)?.[0] || ''
+
+  assert.match(source, /expandedReplyIds/)
+  assert.match(source, /message\.role === 'assistant'/)
+  assert.match(source, /message\.role === 'user'/)
+  assert.match(source, /查看 AI 回复/)
+  assert.match(source, /收起 AI 回复/)
+  assert.match(source, /replyExpanded\(message/)
+  assert.match(source, /toggleReply\(message/)
+  assert.match(proposal, /latestProposal\.changes/)
+  assert.match(proposal, /应用所选/)
+  assert.match(proposal, /放弃建议/)
+  assert.doesNotMatch(proposal, /latestProposal\.content/)
+  assert.doesNotMatch(source, /v-html/)
+})
+
+test('saved asset dialogs share the AI edit panel while add mode does not create a conversation', async () => {
+  const source = await readFile(new URL('../src/views/FilmCreate.vue', import.meta.url), 'utf8')
+  assert.match(source, /import AiEditPanel/)
+  assert.match(source, /entity-type="character"[\s\S]*?editCharacterForm\.id/)
+  assert.match(source, /entity-type="scene"[\s\S]*?editSceneForm\.id/)
+  assert.match(source, /entity-type="prop"[\s\S]*?editPropForm\.id/)
+  assert.match(source, /asset-edit-layout/)
+  assert.match(source, /asset-edit-tabs/)
+})
+
+test('every AI editable asset field has a visible form control', async () => {
+  const source = await readFile(new URL('../src/views/FilmCreate.vue', import.meta.url), 'utf8')
+  for (const field of ['personality', 'voice_style', 'negative_prompt', 'polished_prompt_single']) {
+    assert.match(source, new RegExp('edit(?:Character|Scene|Prop)Form\\.' + field))
+  }
+})
