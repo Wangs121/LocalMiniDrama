@@ -1,3 +1,5 @@
+const { getAdapter } = require('./aiEditSchemas');
+
 const MAX_CONTEXT_CHARS = 50000;
 const MAX_SCRIPT_CHARS = 12000;
 const MAX_MESSAGE_CHARS = 2000;
@@ -56,6 +58,27 @@ function fullJson(value) {
   } catch (_) {
     return JSON.stringify(String(value));
   }
+}
+
+function candidateContract(entityType) {
+  const { fields } = getAdapter(entityType);
+  const contract = {};
+  for (const [field, definition] of Object.entries(fields)) {
+    if (definition.kind === 'enum') {
+      contract[field] = { type: 'enum', allowed_values: definition.values };
+    } else if (definition.kind === 'number') {
+      contract[field] = { type: 'number', min: definition.min, max: definition.max };
+    } else if (definition.kind === 'relation') {
+      contract[field] = { type: 'positive_integer_or_null', source: 'available relation IDs' };
+    } else if (definition.kind === 'relations') {
+      contract[field] = { type: 'positive_integer_array', source: 'available relation IDs' };
+    } else if (definition.kind === 'stages') {
+      contract[field] = { type: 'array', max_items: definition.maxItems };
+    } else {
+      contract[field] = { type: definition.required ? 'non_empty_string' : 'string_or_null', max_length: definition.max };
+    }
+  }
+  return contract;
 }
 
 function scriptTerms(context, snapshot) {
@@ -131,6 +154,7 @@ function buildGenerationPrompts(context, currentSnapshot, previousCandidate, rec
   const sections = [
     { title: '当前要求', content: normalizeText(userMessage) },
     { title: '当前表单', content: fullJson(currentSnapshot) },
+    { title: 'Candidate contract', content: fullJson(candidateContract(context.entityType)) },
     { title: '上一候选', content: fullJson(previousCandidate) },
     {
       title: '项目设置',
@@ -155,12 +179,13 @@ function buildRepairPrompts(entityType, rawText, validationMessage, currentSnaps
   const fixedSections = [
     { title: '对象类型', content: normalizeText(entityType) },
     { title: '校验错误', content: trimToLength(validationMessage, 4000) },
+    { title: 'Candidate contract', content: fullJson(candidateContract(entityType)) },
     { title: '当前表单', content: boundedJson(currentSnapshot, 35000) },
     { title: '待修复输出', content: normalizeText(rawText) },
   ];
   let userPrompt = renderSections(fixedSections);
   if (userPrompt.length > MAX_CONTEXT_CHARS) {
-    const rawSection = fixedSections[3];
+    const rawSection = fixedSections.find((section) => section.title === '待修复输出');
     rawSection.content = trimToLength(
       rawSection.content,
       Math.max(0, rawSection.content.length - (userPrompt.length - MAX_CONTEXT_CHARS))
