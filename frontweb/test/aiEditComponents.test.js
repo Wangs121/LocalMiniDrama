@@ -54,3 +54,21 @@ test('every AI editable asset field has a visible form control', async () => {
     assert.match(source, new RegExp('edit(?:Character|Scene|Prop)Form\\.' + field))
   }
 })
+
+test('storyboard AI dialog owns the complete form and shared review panel', async () => {
+  const source = await readFile(new URL('../src/components/StoryboardAiEditDialog.vue', import.meta.url), 'utf8')
+  assert.match(source, /AiEditPanel/)
+  assert.match(source, /entity-type="storyboard"/)
+  assert.match(source, /storyboardsAPI\.update/)
+  assert.match(source, /useUnsavedDialogGuard/)
+  for (const field of [
+    'title', 'description', 'layout_description', 'location', 'time', 'duration',
+    'dialogue', 'narration', 'action', 'atmosphere', 'image_prompt', 'polished_prompt',
+    'video_prompt', 'universal_segment_text', 'shot_type', 'angle_h', 'angle_v',
+    'angle_s', 'movement', 'lighting_style', 'depth_of_field', 'scene_id',
+    'character_ids', 'prop_ids',
+  ]) assert.match(source, new RegExp(`form\\.${field}`))
+  assert.match(source, /图片可能过期/)
+  assert.match(source, /视频可能过期/)
+  assert.doesNotMatch(source, /rebuildVideoPrompt/)
+})
