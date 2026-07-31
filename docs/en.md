@@ -4,7 +4,7 @@
 
 **A locally-running AI short drama & comic generator — download and run, no cloud required, fully open source**
 
-[![version](https://img.shields.io/badge/version-1.2.8-blue?style=flat-square)](../../releases)
+[![version](https://img.shields.io/badge/version-1.2.9-blue?style=flat-square)](../../releases)
 [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](../LICENSE)
 [![platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square)](#)
 [![stack](https://img.shields.io/badge/Vue3%20%2B%20Node.js%20%2B%20Electron-informational?style=flat-square)](#)
@@ -185,12 +185,14 @@ LocalMiniDrama/
 
 Full version history → **[CHANGELOG](changelog.md)**
 
-**Latest v1.2.8 highlights:**
-- 🆕 **Agnes AI** — one-click setup for text (`agnes-2.0-flash`), image (`agnes-image-2.1-flash`), and video (`agnes-video-v2.0`) with a single API key
-- 🆕 **Canvas mode enhancements** — script node on canvas, context menu, floating toolbar, in-canvas create/delete, batch episode generation
-- 🆕 **ModelArk private asset library** — configure BytePlus / Volcengine Ark asset groups for Seedance 2.0 character certification (AK/SK or Bearer auth)
-- 🔧 **Configurable image proxy** — `upload_url`, timeout (default 180s), and retry count in `config.yaml`; stale cache URLs auto-reupload
-- 🔧 **Prompt improvements** · **Storyboard image count limit fix**
+**Latest v1.2.9 highlights:**
+- 🆕 **Conversational AI editing** — iteratively refine characters, scenes, props, and storyboards, including manually added missing objects
+- 🆕 **Local field-diff review** — inspect deterministic before/after changes, apply selected fields, and expand detailed AI replies and history
+- 🆕 **Storyboard AI editor** — covers content, relations, camera settings, image/video prompts, and universal segment text
+- 🆕 **Short drama and topic-video content types** — dedicated script structures and generation constraints for each workflow
+- 🔧 **Dynamic storyboard duration** — AI chooses 4–15 seconds per new shot from dialogue, action, emotion, and narrative purpose
+- 🔧 **Strict AI field contracts** — exact camera enum values are included in generation and repair prompts, preventing invalid `angle_h` failures
+- 🔧 **Separate storyboard and export resolution controls** — preserve provider pixels for clips and choose the final composition resolution independently
 
 **v1.2.7 highlights:**
 - 🆕 **Tail-frame link** — one-click extract the last frame of the current shot’s video (server-side ffmpeg) and set it as the **next shot’s first frame**

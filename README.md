@@ -6,7 +6,7 @@
 
 *LocalMiniDrama · AI-powered short drama creator*
 
-[![version](https://img.shields.io/badge/version-1.2.8-blue?style=flat-square)](https://github.com/Wangs121/LocalMiniDrama/releases)
+[![version](https://img.shields.io/badge/version-1.2.9-blue?style=flat-square)](https://github.com/Wangs121/LocalMiniDrama/releases)
 [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square)](#-快速开始)
 [![stack](https://img.shields.io/badge/Vue3%20%2B%20Node.js%20%2B%20Electron-informational?style=flat-square)](#-项目架构)
@@ -39,17 +39,15 @@
 
 ---
 
-## 📌 最新动态（v1.2.8）
+## 📌 最新动态（v1.2.9）
 
-- 🆕 **Agnes AI 接入**：文本 / 图片 / 视频一键配置，一个 Key 覆盖全流程
-- 🆕 **画布模式增强**：剧本节点、右键菜单、浮动工具栏、画布内新建/删除/整集生成
-- 🆕 **ModelArk 私有资产库**：SD2 角色认证对接火山方舟资产组，AK/SK 与 Bearer 双鉴权
-- 🔧 **图床可配置**：`upload_url` / 超时（默认 180s）/ 重试次数写入 `config.yaml`；缓存 URL 失效自动重传
-- 🔧 **Seedance 2.0 提示词编排修复**：按官方指南改为 `镜头1 / 镜头2` 顺序描述，取消内部镜头精确分秒和多重运镜堆叠；补充主体稳定锚点、动作因果链、素材职责及无字幕/Logo/水印约束
-- 🔧 **全能分镜多行保存修复**：修复批量生成后 `universal_segment_text` 换行被压平的问题；已有旧时间戳草稿可通过「生成」或「润色」转换为新格式
-- 🔧 **分镜图片数量上限修复**
-- 🔧 **Seedance 2.0 首尾帧修复**：全能模式同时提交首帧、尾帧和多参考图，分别使用 `first_frame`、`last_frame`、`reference_image` 角色，避免视频脱离关键帧或画风漂移
-- 🆕 **通用创作 Skill 2.0**：支持安全导入 ZIP/本地目录、完整章节预览、全局启停和项目级选择；六个内置影视能力包按阶段注入约 42K–69K 字符的镜头、美学、创意、剪辑与连续性方法论，不绑定具体模型
+- 🆕 **对话式 AI 修改**：角色、场景、道具和分镜均可连续对话调整；支持人工补建遗漏对象后让 AI 继续完善
+- 🆕 **本地字段差异审阅**：前后对比由本地计算，可逐字段勾选应用，详细 AI 回复和历史记录可展开查看
+- 🆕 **分镜 AI 修改**：覆盖内容、关联、镜头、画面、图片提示词、视频提示词和全能片段文本
+- 🆕 **短剧 / 主题视频双内容类型**：按创作目的提供对应脚本结构和生成约束
+- 🔧 **动态分镜时长**：AI 根据对白、动作、情绪和叙事作用在 4–15 秒内决定新分镜时长，项目秒数只用于估算镜数
+- 🔧 **分镜 AI 字段合同**：明确机位枚举等合法值，修复“无效的 angle_h”导致修改失败
+- 🔧 **分镜与导出分辨率分离**：分镜保留服务商原始像素，整集导出独立选择目标分辨率
 
 完整记录 → **[CHANGELOG.md](CHANGELOG.md)**
 
