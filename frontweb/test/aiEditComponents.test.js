@@ -72,3 +72,25 @@ test('storyboard AI dialog owns the complete form and shared review panel', asyn
   assert.match(source, /视频可能过期/)
   assert.doesNotMatch(source, /rebuildVideoPrompt/)
 })
+
+test('list and canvas storyboard editors open the shared AI dialog', async () => {
+  const list = await readFile(new URL('../src/views/FilmCreate.vue', import.meta.url), 'utf8')
+  const canvas = await readFile(new URL('../src/components/dramaCanvas/CanvasStoryboardPanel.vue', import.meta.url), 'utf8')
+  const assets = await readFile(new URL('../src/components/dramaCanvas/CanvasAssetPanel.vue', import.meta.url), 'utf8')
+  assert.match(list, /StoryboardAiEditDialog/)
+  assert.match(list, /ChatDotRound/)
+  assert.match(list, /图片可能过期/)
+  assert.match(list, /视频可能过期/)
+  assert.match(canvas, /StoryboardAiEditDialog/)
+  assert.match(canvas, /ChatDotRound/)
+  assert.match(canvas, /ctx\?\.refreshDrama\?\.\(true\)/)
+  assert.match(assets, /媒体可能过期/)
+})
+
+test('storyboard AI dialog lets both panes shrink and scroll inside short viewports', async () => {
+  const source = await readFile(new URL('../src/components/StoryboardAiEditDialog.vue', import.meta.url), 'utf8')
+  assert.match(source, /\.storyboard-ai-layout\s*\{[\s\S]*?height:\s*min\([^;]+calc\(100vh - 260px\)\)/)
+  assert.match(source, /\.storyboard-form-pane\s*\{[\s\S]*?min-height:\s*0/)
+  assert.match(source, /\.storyboard-ai-pane\s*\{[\s\S]*?min-height:\s*0/)
+  assert.match(source, /:global\(\.storyboard-ai-dialog\)[\s\S]*?margin-top:/)
+})

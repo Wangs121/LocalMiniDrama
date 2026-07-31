@@ -10,7 +10,10 @@
   >
     <div class="panel-head">
       <span>{{ kindLabel }}</span>
-      <el-button link size="small" @click.stop="closePanel">收起</el-button>
+      <div class="panel-head-actions">
+        <el-tag v-if="entity?.image_stale" size="small" effect="plain" type="warning">媒体可能过期</el-tag>
+        <el-button link size="small" @click.stop="closePanel">收起</el-button>
+      </div>
     </div>
 
     <div class="panel-body">
@@ -316,6 +319,11 @@ function highlightRelated() {
   font-weight: 700;
   color: #6ee7b7;
   margin-bottom: 10px;
+}
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .panel-body {
   display: flex;

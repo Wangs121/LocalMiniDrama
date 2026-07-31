@@ -1041,6 +1041,12 @@
             <span class="sb-ctrl-num">{{ i + 1 }}</span>
             <span class="sb-ctrl-title">{{ sb.title || '未命名分镜' }}</span>
             <el-tag v-if="sb.movement" size="small" effect="plain" type="info" class="sb-movement-tag">{{ getMovementLabel(sb.movement) }}</el-tag>
+            <el-tag v-if="sb.image_stale" size="small" effect="plain" type="warning">图片可能过期</el-tag>
+            <el-tag v-if="sb.video_stale" size="small" effect="plain" type="warning">视频可能过期</el-tag>
+            <el-button size="small" plain class="sb-ctrl-btn" @click="openStoryboardAiEdit(sb)">
+              <el-icon><ChatDotRound /></el-icon>
+              AI 修改
+            </el-button>
             <el-button size="small" plain class="sb-ctrl-btn sb-ctrl-config-btn" @click="onOpenVideoParamsDialog(sb)">⚙ 分镜配置</el-button>
             <el-button
               size="small"
@@ -1746,7 +1752,13 @@
     <input ref="addPropAddRefFileInput" type="file" accept="image/*" style="display:none" @change="onRefImageFileChange2('addProp', $event)" />
 
     <!-- 添加/编辑角色弹窗 -->
-    <el-dialog v-model="showEditCharacter" :title="editCharacterForm?.id ? '编辑角色' : '添加角色'" width="75%" @close="onCloseCharDialog">
+    <el-dialog v-model="showEditCharacter" :title="editCharacterForm?.id ? '编辑角色' : '添加角色'" width="min(1180px, calc(100vw - 32px))" class="asset-edit-tabs" :before-close="characterDialogGuard.beforeClose" @closed="onCloseCharDialog">
+      <el-tabs v-if="editCharacterForm?.id" v-model="assetEditTabs.character" class="asset-edit-mobile-tabs">
+        <el-tab-pane label="对象信息" name="info" />
+        <el-tab-pane label="AI 修改" name="ai" />
+      </el-tabs>
+      <div class="asset-edit-layout">
+      <div v-show="assetEditTabs.character !== 'ai'" class="asset-edit-form-pane">
       <el-form v-if="editCharacterForm" label-width="90px">
         <!-- 参考图上传区（新增/编辑均显示） -->
         <el-form-item label="参考图">
@@ -1789,6 +1801,12 @@
         </el-form-item>
         <el-form-item label="外貌描述">
           <el-input v-model="editCharacterForm.appearance" type="textarea" :autosize="{ minRows: 4, maxRows: 10 }" placeholder="用于 AI 生成图像的外貌描述，尽量详细" />
+        </el-form-item>
+        <el-form-item label="性格">
+          <el-input v-model="editCharacterForm.personality" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+        </el-form-item>
+        <el-form-item label="声音风格">
+          <el-input v-model="editCharacterForm.voice_style" />
         </el-form-item>
         <el-form-item label="简介">
           <el-input v-model="editCharacterForm.description" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" placeholder="角色背景简介，供剧本生成参考" />
@@ -1857,9 +1875,24 @@
             />
           </div>
         </el-form-item>
+        <el-form-item label="负面提示词">
+          <el-input v-model="editCharacterForm.negative_prompt" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+        </el-form-item>
       </el-form>
+      </div>
+      <AiEditPanel
+        v-if="editCharacterForm?.id"
+        v-show="assetEditTabs.character !== 'info'"
+        class="asset-edit-ai-pane"
+        entity-type="character"
+        :entity-id="editCharacterForm.id"
+        :episode-id="currentEpisodeId"
+        :get-snapshot="getCharacterAiSnapshot"
+        :apply-fields="applyCharacterAiFields"
+      />
+      </div>
       <template #footer>
-        <el-button @click="showEditCharacter = false">取消</el-button>
+        <el-button @click="characterDialogGuard.requestClose()">取消</el-button>
         <el-button type="primary" :loading="editCharacterSaving" :disabled="!editCharacterForm?.name?.trim()" @click="submitEditCharacter">{{ editCharacterForm?.id ? '保存' : '添加' }}</el-button>
       </template>
     </el-dialog>
@@ -1896,7 +1929,13 @@
     </el-dialog>
 
     <!-- 编辑道具弹窗 -->
-    <el-dialog v-model="showEditProp" :title="editPropForm?.id ? '编辑道具' : '添加道具'" width="75%" @close="onClosePropDialog">
+    <el-dialog v-model="showEditProp" :title="editPropForm?.id ? '编辑道具' : '添加道具'" width="min(1180px, calc(100vw - 32px))" class="asset-edit-tabs" :before-close="propDialogGuard.beforeClose" @closed="onClosePropDialog">
+      <el-tabs v-if="editPropForm?.id" v-model="assetEditTabs.prop" class="asset-edit-mobile-tabs">
+        <el-tab-pane label="对象信息" name="info" />
+        <el-tab-pane label="AI 修改" name="ai" />
+      </el-tabs>
+      <div class="asset-edit-layout">
+      <div v-show="assetEditTabs.prop !== 'ai'" class="asset-edit-form-pane">
       <el-form v-if="editPropForm" label-width="90px">
         <!-- 参考图上传区（新增/编辑均显示） -->
         <el-form-item label="参考图">
@@ -1947,15 +1986,36 @@
             />
           </div>
         </el-form-item>
+        <el-form-item label="负面提示词">
+          <el-input v-model="editPropForm.negative_prompt" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+        </el-form-item>
       </el-form>
+      </div>
+      <AiEditPanel
+        v-if="editPropForm?.id"
+        v-show="assetEditTabs.prop !== 'info'"
+        class="asset-edit-ai-pane"
+        entity-type="prop"
+        :entity-id="editPropForm.id"
+        :episode-id="currentEpisodeId"
+        :get-snapshot="getPropAiSnapshot"
+        :apply-fields="applyPropAiFields"
+      />
+      </div>
       <template #footer>
-        <el-button @click="showEditProp = false">取消</el-button>
+        <el-button @click="propDialogGuard.requestClose()">取消</el-button>
         <el-button type="primary" :loading="editPropSaving" :disabled="!editPropForm?.name?.trim()" @click="submitEditProp">保存</el-button>
       </template>
     </el-dialog>
 
     <!-- 添加/编辑场景弹窗 -->
-    <el-dialog v-model="showEditScene" :title="editSceneForm?.id ? '编辑场景' : '添加场景'" width="75%" @close="onCloseSceneDialog">
+    <el-dialog v-model="showEditScene" :title="editSceneForm?.id ? '编辑场景' : '添加场景'" width="min(1180px, calc(100vw - 32px))" class="asset-edit-tabs" :before-close="sceneDialogGuard.beforeClose" @closed="onCloseSceneDialog">
+      <el-tabs v-if="editSceneForm?.id" v-model="assetEditTabs.scene" class="asset-edit-mobile-tabs">
+        <el-tab-pane label="对象信息" name="info" />
+        <el-tab-pane label="AI 修改" name="ai" />
+      </el-tabs>
+      <div class="asset-edit-layout">
+      <div v-show="assetEditTabs.scene !== 'ai'" class="asset-edit-form-pane">
       <el-form v-if="editSceneForm" label-width="90px">
         <!-- 参考图上传区（新增/编辑均显示） -->
         <el-form-item label="参考图">
@@ -2028,9 +2088,24 @@
             />
           </div>
         </el-form-item>
+        <el-form-item label="负面提示词">
+          <el-input v-model="editSceneForm.negative_prompt" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+        </el-form-item>
       </el-form>
+      </div>
+      <AiEditPanel
+        v-if="editSceneForm?.id"
+        v-show="assetEditTabs.scene !== 'info'"
+        class="asset-edit-ai-pane"
+        entity-type="scene"
+        :entity-id="editSceneForm.id"
+        :episode-id="currentEpisodeId"
+        :get-snapshot="getSceneAiSnapshot"
+        :apply-fields="applySceneAiFields"
+      />
+      </div>
       <template #footer>
-        <el-button @click="showEditScene = false">取消</el-button>
+        <el-button @click="sceneDialogGuard.requestClose()">取消</el-button>
         <el-button type="primary" :loading="editSceneSaving" :disabled="!editSceneForm?.location?.trim()" @click="submitEditScene">{{ editSceneForm?.id ? '保存' : '添加' }}</el-button>
       </template>
     </el-dialog>
@@ -2654,6 +2729,16 @@
       </template>
     </el-dialog>
 
+    <StoryboardAiEditDialog
+      v-model="showStoryboardAiEdit"
+      :storyboard="storyboardAiTarget"
+      :episode-id="currentEpisodeId"
+      :characters="characters"
+      :scenes="scenes"
+      :props-list="props"
+      @saved="onStoryboardAiSaved"
+    />
+
     <!-- AI 配置弹窗（不跳转，避免本页内容丢失） -->
     <el-dialog v-model="showAiConfigDialog" title="AI 配置" width="90%" destroy-on-close class="ai-config-dialog">
       <AIConfigContent v-if="showAiConfigDialog" :drama-id="dramaId" />
@@ -2677,7 +2762,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, reactive, nextTick } 
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Setting, Plus, Minus, Sunny, Moon, MagicStick, Upload, Delete, Check, Loading, WarningFilled, User, Box, Picture, Film, VideoCamera, Document, InfoFilled, Refresh, ZoomIn, QuestionFilled, DocumentAdd, Expand, Fold, VideoPlay, Grid, Close } from '@element-plus/icons-vue'
+import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Setting, Plus, Minus, Sunny, Moon, MagicStick, Upload, Delete, Check, Loading, WarningFilled, User, Box, Picture, Film, VideoCamera, Document, InfoFilled, Refresh, ZoomIn, QuestionFilled, DocumentAdd, Expand, Fold, VideoPlay, Grid, Close, ChatDotRound } from '@element-plus/icons-vue'
 import { useTheme } from '@/composables/useTheme'
 import { useFilmStore } from '@/stores/film'
 import { useGenerationTaskStore, GEN_RESOURCE } from '@/stores/generationTaskStore'
@@ -2702,6 +2787,8 @@ import { exportStoryboardSheet } from '@/utils/exportStoryboardSheet'
 import StylePickerButton from '@/components/StylePickerButton.vue'
 import AIConfigContent from '@/components/AIConfigContent.vue'
 import UniversalSegmentOmniAtEditor from '@/components/UniversalSegmentOmniAtEditor.vue'
+import AiEditPanel from '@/components/AiEditPanel.vue'
+import StoryboardAiEditDialog from '@/components/StoryboardAiEditDialog.vue'
 import {
   generationStyleOptions,
   getStylePromptEn,
@@ -2720,6 +2807,7 @@ import {
 import { useCharacters } from '@/composables/filmCreate/useCharacters'
 import { useProps as usePropsComposable } from '@/composables/filmCreate/useProps'
 import { useScenes } from '@/composables/filmCreate/useScenes'
+import { useUnsavedDialogGuard } from '@/composables/useUnsavedDialogGuard.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -2965,6 +3053,7 @@ const {
   charRoleLabel, onGenerateCharacters: onGenerateCharactersRaw, openAddCharacter, stopCharacterPromptPoll, editCharacter,
   saveCharRefImageIfAny, submitEditCharacter, doGenerateCharacterPrompt, doExtractCharFromImage,
   extractIdentityAnchors, clearCharRefImage, onCloseCharDialog, onDeleteCharacter, onGenerateCharacterImage, onSd2CertifyCharacter, onSd2CertifyRefresh, sd2ActionLabel, onSd2PrimaryAction, openCharSd2CertDialog,
+  getCurrentAiSnapshot: getCharacterAiSnapshot, applyAiFields: applyCharacterAiFields,
   onSd2VoicePrimaryAction, onSd2VoiceReplace, sd2VoiceActionLabel, playSd2Voice,
   loadCharLibraryList, debouncedLoadCharLibrary, loadDramaAllCharList, debouncedLoadDramaAllCharList,
   onCharLibraryDialogOpen, onCharLibraryTabChange, isCharAddToEpisodeLoading,
@@ -2988,6 +3077,7 @@ const {
   onExtractProps: onExtractPropsRaw, stopPropPromptPoll, editProp, doGeneratePropPrompt, savePropRefImageIfAny,
   clearPropRefImage, doExtractPropFromImage, submitEditProp, submitAddProp,
   onClosePropDialog, onDeleteProp, onGeneratePropImage,
+  getCurrentAiSnapshot: getPropAiSnapshot, applyAiFields: applyPropAiFields,
   loadPropLibraryList, debouncedLoadPropLibrary, loadDramaAllPropList, debouncedLoadDramaAllPropList,
   onPropLibraryDialogOpen, onPropLibraryTabChange, isPropAddToEpisodeLoading,
   openEditPropLibrary, submitEditPropLibrary,
@@ -3010,12 +3100,37 @@ const {
   onExtractScenes: onExtractScenesRaw, openAddScene, stopScenePromptPoll, editScene, doGenerateScenePrompt, doGenerateSceneSinglePrompt,
   saveSceneRefImageIfAny, clearSceneRefImage, doExtractSceneFromImage, submitEditScene,
   onCloseSceneDialog, onDeleteScene, onGenerateSceneImage,
+  getCurrentAiSnapshot: getSceneAiSnapshot, applyAiFields: applySceneAiFields,
   loadSceneLibraryList, debouncedLoadSceneLibrary, loadDramaAllSceneList, debouncedLoadDramaAllSceneList,
   onSceneLibraryDialogOpen, onSceneLibraryTabChange, isSceneAddToEpisodeLoading,
   openEditSceneLibrary, submitEditSceneLibrary,
   onDeleteSceneLibrary, onAddSceneToLibrary, onAddSceneToMaterialLibrary,
   onAddSceneFromLibrary, onAddDramaSceneToEpisode,
 } = useScenes({ store, dramaId, currentEpisodeId, getSelectedStyle, scriptLanguage, loadDrama, pollTask, pollUntilResourceHasImage, hasAssetImage, dramaAPI })
+
+const assetEditTabs = reactive({ character: 'info', prop: 'info', scene: 'info' })
+const characterDialogGuard = useUnsavedDialogGuard({
+  getSnapshot: getCharacterAiSnapshot,
+  save: submitEditCharacter,
+  discard: async () => {},
+  close: () => { showEditCharacter.value = false },
+})
+const propDialogGuard = useUnsavedDialogGuard({
+  getSnapshot: getPropAiSnapshot,
+  save: submitEditProp,
+  discard: async () => {},
+  close: () => { showEditProp.value = false },
+})
+const sceneDialogGuard = useUnsavedDialogGuard({
+  getSnapshot: getSceneAiSnapshot,
+  save: submitEditScene,
+  discard: async () => {},
+  close: () => { showEditScene.value = false },
+})
+
+watch(showEditCharacter, (open) => { if (open) nextTick(characterDialogGuard.captureCleanSnapshot) })
+watch(showEditProp, (open) => { if (open) nextTick(propDialogGuard.captureCleanSnapshot) })
+watch(showEditScene, (open) => { if (open) nextTick(sceneDialogGuard.captureCleanSnapshot) })
 
 async function onGenerateCharacters() {
   trackFilmCreateAction('generate_characters_click')
@@ -3080,6 +3195,17 @@ const propUseQuadGrid = ref(false)  // 道具四视图（与场景四宫格同�
 
 // 分镜行内编辑状态（按 storyboard id 存储）
 // navCollapsed/storyboardMenuExpanded/toggleNav → 已移至 useNavigation composable
+const storyboardAiTarget = ref(null)
+const showStoryboardAiEdit = ref(false)
+
+function openStoryboardAiEdit(storyboard) {
+  storyboardAiTarget.value = storyboard
+  showStoryboardAiEdit.value = true
+}
+
+async function onStoryboardAiSaved() {
+  await loadDrama()
+}
 
 /** 左侧导航各步骤状态 */
 const navSteps = computed(() => {
@@ -10852,5 +10978,48 @@ html.light .frame-layout-anchor {
   color: #64748b;
   margin-top: 4px;
   line-height: 1.4;
+}
+.asset-edit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.asset-edit-form-pane {
+  min-width: 0;
+  max-height: min(720px, calc(100vh - 180px));
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.asset-edit-ai-pane {
+  min-width: 0;
+}
+
+.asset-edit-mobile-tabs {
+  display: none;
+}
+
+@media (min-width: 761px) {
+  .asset-edit-form-pane,
+  .asset-edit-ai-pane {
+    display: block !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .asset-edit-mobile-tabs {
+    display: block;
+  }
+
+  .asset-edit-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .asset-edit-form-pane,
+  .asset-edit-ai-pane {
+    width: 100%;
+  }
 }
 </style>

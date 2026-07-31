@@ -7,6 +7,7 @@ import { generationAPI } from '@/api/generation'
 import { uploadAPI } from '@/api/upload'
 import { useGenerationTaskStore, GEN_RESOURCE } from '@/stores/generationTaskStore'
 import { buildExtractTaskMeta, isEpisodeExtractRunning } from '@/composables/useGenerationTaskSync'
+import { applyCandidateFields, normalizeAiEditSnapshot } from '@/utils/aiEditEntities.js'
 
 /**
  * 角色管理 Composable
@@ -140,7 +141,9 @@ export function useCharacters(deps) {
       appearance: '',
       personality: '',
       description: '',
-      polished_prompt: ''
+      voice_style: '',
+      polished_prompt: '',
+      negative_prompt: ''
     }
     showEditCharacter.value = true
   }
@@ -161,7 +164,9 @@ export function useCharacters(deps) {
       appearance: char.appearance || '',
       personality: char.personality || '',
       description: char.description || '',
+      voice_style: char.voice_style || '',
       polished_prompt: char.polished_prompt || '',
+      negative_prompt: char.negative_prompt || '',
       image_url: char.image_url || '',
       local_path: char.local_path || '',
       ref_image: char.ref_image || '',
@@ -214,15 +219,7 @@ export function useCharacters(deps) {
     editCharacterSaving.value = true
     try {
       if (form.id) {
-        await characterAPI.update(form.id, {
-          name: form.name.trim(),
-          role: form.role || undefined,
-          appearance: form.appearance || undefined,
-          personality: form.personality || undefined,
-          description: form.description || undefined,
-          polished_prompt: form.polished_prompt || undefined,
-          stages: form.stages ? form.stages.trim() || undefined : undefined
-        })
+        await characterAPI.update(form.id, getCurrentAiSnapshot())
         await saveCharRefImageIfAny(form.id)
         ElMessage.success('角色已保存')
       } else {
@@ -314,6 +311,14 @@ export function useCharacters(deps) {
     stopCharacterPromptPoll()
     editCharacterPromptGenerating.value = false
     addCharRefImage.value = null
+  }
+
+  function getCurrentAiSnapshot() {
+    return normalizeAiEditSnapshot('character', editCharacterForm.value || {})
+  }
+
+  function applyAiFields(candidate, fields) {
+    return applyCandidateFields('character', editCharacterForm.value, candidate, fields)
   }
 
   async function onDeleteCharacter(char) {
@@ -843,6 +848,8 @@ export function useCharacters(deps) {
     extractIdentityAnchors,
     clearCharRefImage,
     onCloseCharDialog,
+    getCurrentAiSnapshot,
+    applyAiFields,
     onDeleteCharacter,
     onGenerateCharacterImage,
     onSd2CertifyCharacter,

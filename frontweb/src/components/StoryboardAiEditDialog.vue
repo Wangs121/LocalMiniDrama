@@ -228,6 +228,10 @@ watch(() => props.storyboard?.id, () => {
 </script>
 
 <style scoped>
+:global(.storyboard-ai-dialog) {
+  margin-top: max(12px, min(6vh, 48px));
+}
+
 .dialog-title,
 .stale-tags {
   display: flex;
@@ -244,19 +248,22 @@ watch(() => props.storyboard?.id, () => {
 .storyboard-ai-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
-  min-height: 560px;
-  max-height: calc(100vh - 180px);
+  height: min(620px, calc(100vh - 260px));
+  min-height: 400px;
   overflow: hidden;
 }
 
 .storyboard-form-pane {
+  min-height: 0;
   min-width: 0;
   overflow-y: auto;
   padding-right: 16px;
 }
 
 .storyboard-ai-pane {
-  min-height: 560px;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
 }
 
 .storyboard-form :deep(.el-form-item) {
@@ -284,7 +291,8 @@ watch(() => props.storyboard?.id, () => {
 @media (max-width: 820px) {
   .storyboard-ai-layout {
     display: block;
-    max-height: calc(100vh - 150px);
+    height: min(680px, calc(100vh - 190px));
+    min-height: 420px;
     overflow-y: auto;
   }
 
@@ -295,6 +303,7 @@ watch(() => props.storyboard?.id, () => {
 
   .storyboard-ai-pane {
     min-height: 520px;
+    height: auto;
     margin-top: 16px;
     border-top: 1px solid var(--el-border-color-light);
   }

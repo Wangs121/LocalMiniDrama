@@ -5,6 +5,7 @@ import { sceneLibraryAPI } from '@/api/sceneLibrary'
 import { uploadAPI } from '@/api/upload'
 import { useGenerationTaskStore, GEN_RESOURCE } from '@/stores/generationTaskStore'
 import { buildExtractTaskMeta, isEpisodeExtractRunning } from '@/composables/useGenerationTaskSync'
+import { applyCandidateFields, normalizeAiEditSnapshot } from '@/utils/aiEditEntities.js'
 
 /**
  * 场景管理 Composable
@@ -121,7 +122,7 @@ export function useScenes(deps) {
   }
 
   function openAddScene() {
-    editSceneForm.value = { location: '', time: '', prompt: '' }
+    editSceneForm.value = { location: '', time: '', prompt: '', polished_prompt_single: '', polished_prompt: '', negative_prompt: '' }
     showEditScene.value = true
   }
 
@@ -138,6 +139,7 @@ export function useScenes(deps) {
       prompt: scene.prompt || '',
       polished_prompt: scene.polished_prompt || '',
       polished_prompt_single: scene.polished_prompt_single || '',
+      negative_prompt: scene.negative_prompt || '',
       image_url: scene.image_url || '',
       local_path: scene.local_path || '',
       ref_image: scene.ref_image || '',
@@ -251,13 +253,7 @@ export function useScenes(deps) {
     editSceneSaving.value = true
     try {
       if (form.id) {
-        await sceneAPI.update(form.id, {
-          location: form.location.trim(),
-          time: form.time || undefined,
-          prompt: form.prompt || undefined,
-          polished_prompt: form.polished_prompt || undefined,
-          polished_prompt_single: form.polished_prompt_single || undefined
-        })
+        await sceneAPI.update(form.id, getCurrentAiSnapshot())
         await saveSceneRefImageIfAny(form.id)
         ElMessage.success('场景已保存')
       } else {
@@ -291,6 +287,14 @@ export function useScenes(deps) {
     stopScenePromptPoll()
     editScenePromptGenerating.value = false
     addSceneRefImage.value = null
+  }
+
+  function getCurrentAiSnapshot() {
+    return normalizeAiEditSnapshot('scene', editSceneForm.value || {})
+  }
+
+  function applyAiFields(candidate, fields) {
+    return applyCandidateFields('scene', editSceneForm.value, candidate, fields)
   }
 
   async function onDeleteScene(scene) {
@@ -620,6 +624,8 @@ export function useScenes(deps) {
     doExtractSceneFromImage,
     submitEditScene,
     onCloseSceneDialog,
+    getCurrentAiSnapshot,
+    applyAiFields,
     onDeleteScene,
     onGenerateSceneImage,
     loadSceneLibraryList,

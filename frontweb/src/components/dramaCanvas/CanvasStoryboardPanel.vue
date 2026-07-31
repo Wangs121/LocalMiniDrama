@@ -11,6 +11,12 @@
       <span>分镜 #{{ storyboard?.storyboard_number ?? storyboard?.id }}</span>
       <div class="head-actions">
         <span v-if="busyLabel" class="busy-tag">{{ busyLabel }}</span>
+        <el-tag v-if="storyboard?.image_stale" size="small" effect="plain" type="warning">图片可能过期</el-tag>
+        <el-tag v-if="storyboard?.video_stale" size="small" effect="plain" type="warning">视频可能过期</el-tag>
+        <el-button link size="small" type="primary" @click.stop="showAiEdit = true">
+          <el-icon><ChatDotRound /></el-icon>
+          AI 修改
+        </el-button>
         <el-button link size="small" type="primary" @click.stop="openListMode">列表详情</el-button>
         <el-button link size="small" @click.stop="closePanel">收起</el-button>
       </div>
@@ -169,6 +175,16 @@
       <el-button size="small" type="warning" :loading="busyStep === 'audio'" @click.stop="runStep('audio')">配音</el-button>
       <el-button size="small" type="danger" plain @click.stop="deleteStoryboard">删除</el-button>
     </div>
+
+    <StoryboardAiEditDialog
+      v-model="showAiEdit"
+      :storyboard="storyboard"
+      :episode-id="episodeId"
+      :characters="characters"
+      :scenes="scenes"
+      :props-list="propsList"
+      @saved="onAiEditSaved"
+    />
   </div>
 </template>
 
@@ -176,7 +192,9 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ChatDotRound } from '@element-plus/icons-vue'
 import { storyboardsAPI } from '@/api/storyboards'
+import StoryboardAiEditDialog from '@/components/StoryboardAiEditDialog.vue'
 import { useCanvasContext } from '@/composables/useCanvasContext'
 import { CANVAS_NODE_STATUS_LABELS } from '@/composables/useCanvasNodeStatus'
 import {
@@ -198,6 +216,7 @@ const router = useRouter()
 const ctx = useCanvasContext()
 const saving = ref(false)
 const busyStep = ref('')
+const showAiEdit = ref(false)
 const characterIds = ref([])
 const sceneId = ref(null)
 const propIds = ref([])
@@ -262,6 +281,10 @@ function openListMode() {
     query: props.episodeId ? { episode: String(props.episodeId) } : {},
     hash: props.storyboard?.id ? `#sb-${props.storyboard.id}` : undefined,
   })
+}
+
+async function onAiEditSaved() {
+  await ctx?.refreshDrama?.(true)
 }
 
 async function onRelationChange() {

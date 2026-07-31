@@ -5,6 +5,7 @@ import { propLibraryAPI } from '@/api/propLibrary'
 import { uploadAPI } from '@/api/upload'
 import { useGenerationTaskStore, GEN_RESOURCE } from '@/stores/generationTaskStore'
 import { buildExtractTaskMeta, isEpisodeExtractRunning } from '@/composables/useGenerationTaskSync'
+import { applyCandidateFields, normalizeAiEditSnapshot } from '@/utils/aiEditEntities.js'
 
 /**
  * 道具管理 Composable
@@ -138,6 +139,7 @@ export function useProps(deps) {
       type: prop.type || '',
       description: prop.description || '',
       prompt: prop.prompt || '',
+      negative_prompt: prop.negative_prompt || '',
       image_url: prop.image_url || '',
       local_path: prop.local_path || '',
       ref_image: prop.ref_image || '',
@@ -231,12 +233,7 @@ export function useProps(deps) {
     if (!editPropForm.value?.id) return
     editPropSaving.value = true
     try {
-      await propAPI.update(editPropForm.value.id, {
-        name: editPropForm.value.name?.trim(),
-        type: editPropForm.value.type || undefined,
-        description: editPropForm.value.description || undefined,
-        prompt: editPropForm.value.prompt || undefined
-      })
+      await propAPI.update(editPropForm.value.id, getCurrentAiSnapshot())
       await savePropRefImageIfAny(editPropForm.value.id)
       await loadDrama()
       showEditProp.value = false
@@ -276,6 +273,14 @@ export function useProps(deps) {
     stopPropPromptPoll()
     editPropPromptGenerating.value = false
     addPropRefImage.value = null
+  }
+
+  function getCurrentAiSnapshot() {
+    return normalizeAiEditSnapshot('prop', editPropForm.value || {})
+  }
+
+  function applyAiFields(candidate, fields) {
+    return applyCandidateFields('prop', editPropForm.value, candidate, fields)
   }
 
   async function onDeleteProp(prop) {
@@ -624,6 +629,8 @@ export function useProps(deps) {
     submitEditProp,
     submitAddProp,
     onClosePropDialog,
+    getCurrentAiSnapshot,
+    applyAiFields,
     onDeleteProp,
     onGeneratePropImage,
     loadPropLibraryList,
