@@ -89,6 +89,31 @@ test('sendMessage persists a locally computed proposal without updating entity d
   }
 });
 
+test('sendMessage preserves the detailed creator-facing AI reply in history', async () => {
+  const db = createServiceDb();
+  try {
+    const detailedReply = '我已按你的要求将角色调整为 28 岁黑色短发，并保留原有服装、性格和声音设定。提示词同步强调了短发轮廓与写实肖像质感。';
+    const service = createAiEditService({
+      db,
+      log: silentLog,
+      generateText: async () => JSON.stringify({
+        schema_version: 1,
+        candidate: characterCandidate({ appearance: '28岁，黑色短发' }),
+        reply: detailedReply,
+      }),
+    });
+
+    const result = await service.sendMessage('character', 10, requestBody('detailed-reply'));
+    const assistant = service.getConversation('character', 10).messages.find((message) => message.role === 'assistant');
+
+    assert.equal(result.reply, detailedReply);
+    assert.equal(result.content, detailedReply);
+    assert.equal(assistant.content, detailedReply);
+  } finally {
+    db.close();
+  }
+});
+
 test('a previous pending candidate is passed as the next working draft', async () => {
   const db = createServiceDb();
   try {

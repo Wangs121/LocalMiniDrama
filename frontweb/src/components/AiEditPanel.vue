@@ -44,7 +44,16 @@
               {{ replyExpanded(message, index) ? '收起 AI 回复' : '查看 AI 回复' }}
             </el-button>
           </div>
-          <p v-if="replyExpanded(message, index)" class="ai-edit-reply-content">{{ message.content }}</p>
+          <div v-if="replyExpanded(message, index)" class="ai-edit-reply-content">
+            <p>{{ message.content }}</p>
+            <div v-if="message.request_status === 'completed' && message.changes?.length" class="ai-edit-reply-changes">
+              <strong>AI 修改结果</strong>
+              <div v-for="change in message.changes" :key="change.field" class="ai-edit-reply-change">
+                <span>{{ fieldLabel(entityType, change.field) }}</span>
+                <p>{{ displayValue(change.field, change.new_value) }}</p>
+              </div>
+            </div>
+          </div>
         </template>
       </article>
 
@@ -322,12 +331,27 @@ defineExpose({ load, reset })
 }
 
 .ai-edit-reply-content {
-  max-height: 240px;
   margin-top: 8px !important;
-  overflow-y: auto;
   padding: 8px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
+}
+
+.ai-edit-reply-changes {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--el-border-color-lighter);
+}
+
+.ai-edit-reply-change span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.ai-edit-reply-change p {
+  margin-top: 2px;
 }
 
 .ai-edit-error,

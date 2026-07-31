@@ -142,6 +142,7 @@ function createAiEditService({ db, log, generateText = aiClient.generateText }) 
     return {
       message_id: view.message_id,
       reply: view.content,
+      content: view.content,
       candidate: view.candidate,
       changes: view.changes,
       base_snapshot_hash: view.base_snapshot_hash,
@@ -302,7 +303,7 @@ function createAiEditService({ db, log, generateText = aiClient.generateText }) 
       }
 
       const changes = diffSnapshots(entityType, currentSnapshot, envelope.candidate);
-      const content = replyText(changes, envelope.note);
+      const content = envelope.reply || replyText(changes, envelope.note);
       const completedAt = nowIso();
       let assistantMessageId;
       db.transaction(() => {
@@ -335,6 +336,7 @@ function createAiEditService({ db, log, generateText = aiClient.generateText }) 
       return {
         message_id: assistantMessageId,
         reply: content,
+        content,
         candidate: envelope.candidate,
         changes,
         base_snapshot_hash: baseHash,

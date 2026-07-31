@@ -99,7 +99,15 @@ export function useAiEditConversation({
       messages.value = [
         ...messages.value,
         { role: 'user', content: text, request_status: 'completed' },
-        { id: result?.message_id, role: 'assistant', content: result?.content || '', request_status: 'completed' },
+        {
+          id: result?.message_id,
+          role: 'assistant',
+          content: result?.content || result?.reply || '',
+          candidate: result?.candidate || null,
+          changes: result?.changes || [],
+          proposal_status: result?.proposal_status || 'pending',
+          request_status: 'completed',
+        },
       ]
       remotePending.value = false
       draftMessage.value = ''

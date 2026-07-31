@@ -228,17 +228,20 @@ function validateEnvelope(db, entityType, meta, envelope) {
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
     throw new Error('AI 返回必须是对象');
   }
-  const allowed = new Set(['schema_version', 'candidate', 'note']);
+  const allowed = new Set(['schema_version', 'candidate', 'reply', 'note']);
   for (const field of Object.keys(envelope)) {
     if (!allowed.has(field)) throw new Error(`未知顶层字段 ${field}`);
   }
   if (envelope.schema_version !== 1) throw new Error('schema_version 必须为 1');
   if (!Object.prototype.hasOwnProperty.call(envelope, 'candidate')) throw new Error('缺少顶层字段 candidate');
+  const reply = normalizeText(envelope.reply);
+  if (reply !== null && (typeof reply !== 'string' || reply.length > 8000)) throw new Error('无效的 reply');
   const note = normalizeText(envelope.note);
   if (note !== null && (typeof note !== 'string' || note.length > 1000)) throw new Error('无效的 note');
   return {
     schema_version: 1,
     candidate: validateCandidate(db, entityType, meta, envelope.candidate),
+    reply,
     note,
   };
 }

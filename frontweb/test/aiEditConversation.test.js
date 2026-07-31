@@ -69,6 +69,10 @@ test('conversation iterates from the latest candidate and applies selected field
   assert.equal(target.appearance, '短发')
   assert.equal(target.polished_prompt, 'long hair')
   assert.equal(calls[0].previous_candidate_message_id, null)
+  assert.deepEqual(state.messages.value.at(-1).changes, [
+    { field: 'appearance', old_value: '长发', new_value: '短发' },
+    { field: 'polished_prompt', old_value: 'long hair', new_value: 'short hair' },
+  ])
   assert.equal(state.latestProposal.value, null)
 })
 
