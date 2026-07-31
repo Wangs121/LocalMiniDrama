@@ -134,6 +134,20 @@ function normalizeDuration(v) {
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
 }
 
+function normalizeGeneratedStoryboardDuration(value) {
+  if (value == null || (typeof value === 'string' && !value.trim())) return 5;
+  const duration = Number(value);
+  if (!Number.isFinite(duration)) return 5;
+  return Math.min(15, Math.max(4, Math.round(duration)));
+}
+
+function sumStoryboardDurations(storyboards) {
+  return storyboards.reduce((sum, storyboard) => {
+    const duration = Number(storyboard?.duration);
+    return Number.isFinite(duration) ? sum + duration : sum;
+  }, 0);
+}
+
 const _SB_PROMPT_LOG_CHUNK = 14000;
 
 /**
@@ -325,12 +339,7 @@ function deriveStoryboardFieldsFromAi(sb, style, videoRatio, opts = {}) {
   const segmentTitle = sb.segment_title ?? null;
   const lightingStyle = sb.lighting_style ?? null;
   const depthOfField = sb.depth_of_field ?? null;
-  let durationSec = normalizeDuration(sb.duration) || 5;
-  const targetClip = opts.targetClipDuration != null ? Number(opts.targetClipDuration) : 0;
-  if (Number.isFinite(targetClip) && targetClip > 0) {
-    durationSec = Math.max(durationSec, Math.round(targetClip));
-  }
-  durationSec = Math.min(120, Math.max(1, Math.round(durationSec)));
+  const durationSec = normalizeGeneratedStoryboardDuration(sb.duration);
   sb.duration = durationSec;
   if (!sb.location && sb.scene_description) {
     const sceneDesc = String(sb.scene_description).trim();
@@ -771,7 +780,7 @@ ${lastCtx}
 ${originalUserPrompt}`;
 }
 
-async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, model, style, userPrompt, systemPrompt, includeNarration, universalOmni, targetClipDurationSec = null, promptSkillIds = undefined) {
+async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, model, style, userPrompt, systemPrompt, includeNarration, universalOmni, promptSkillIds = undefined) {
   // 增量保存状态放在 try 外，catch 里可用于部分恢复
   const episodeIdNum = Number(episodeId);
   const episodeSkillRow = db.prepare('SELECT drama_id FROM episodes WHERE id = ?').get(episodeIdNum);
@@ -781,7 +790,6 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
   const streamVideoRatio = cfg?.style?.default_video_ratio || '16:9';
   const deriveOpts = {
     universalOmni: !!universalOmni,
-    targetClipDuration: targetClipDurationSec != null && Number(targetClipDurationSec) > 0 ? Number(targetClipDurationSec) : null,
   };
   let streamThrottle = 0;
 
@@ -964,18 +972,18 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
     }
     // ── 续写结束 ────────────────────────────────────────────────────────────
 
-    const totalDuration = storyboards.reduce((sum, sb) => sum + (Number(sb.duration) || 0), 0);
     if (parseMeta.truncated) {
       log.warn('Storyboard still truncated after max continuations', {
         task_id: taskId, final_count: storyboards.length, continuation_attempts: contAttempt,
       });
     }
-    log.info('Storyboard generated', { task_id: taskId, episode_id: episodeId, count: storyboards.length, total_duration_seconds: totalDuration, truncated: parseMeta.truncated || false, continuation_attempts: contAttempt });
 
     taskService.updateTaskStatus(db, taskId, 'processing', 70, '正在保存分镜头...');
 
     // 传入 streamSavedNums：已增量保存的项目直接从 DB 读取，跳过重复 INSERT
     const saved = saveStoryboards(db, log, episodeId, storyboards, cfg, style, streamSavedNums, deriveOpts);
+    const totalDuration = sumStoryboardDurations(saved);
+    log.info('Storyboard generated', { task_id: taskId, episode_id: episodeId, count: saved.length, total_duration_seconds: totalDuration, truncated: parseMeta.truncated || false, continuation_attempts: contAttempt });
 
     // ── 分镜角色补全（字符串匹配，无 AI，极快）──────────────────────────────────
     taskService.updateTaskStatus(db, taskId, 'processing', 75, '正在校验分镜角色关联...');
@@ -1059,22 +1067,11 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
   } catch (_) {}
   const imageRatio = aspectRatio || dramaAspectRatio || cfg?.style?.default_video_ratio || '16:9';
 
-  // 计算单镜建议时长（秒）：
-  // 项目 metadata 中的 video_clip_duration（如 15 秒/段）优先于「总时长÷镜数」，
-  // 否则前端同时传总时长+镜数时会把每镜压成过短（与「每段秒数」配置矛盾）。
-  // 无项目配置时再使用总时长÷镜数；再否则 null。
-  let effectiveShotDuration = null;
+  // 项目秒数只用于前端估算分镜数量，不作为单镜目标或最低值。
   const impliedFromTotal =
     videoDuration && storyboardCount
       ? Math.round(Number(videoDuration) / Number(storyboardCount))
       : null;
-  if (videoClipDuration && Number(videoClipDuration) > 0) {
-    effectiveShotDuration = Number(videoClipDuration);
-  } else if (impliedFromTotal && impliedFromTotal > 0) {
-    effectiveShotDuration = impliedFromTotal;
-  } else {
-    effectiveShotDuration = null;
-  }
 
   let scriptContent = (episode.script_content && String(episode.script_content).trim())
     ? String(episode.script_content)
@@ -1130,23 +1127,13 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
       if (durationLabel) extraConstraint += `\n${durationLabel}`;
     }
   }
-  // 当同时指定总时长和数量时，补充单镜 duration 说明（与项目「每段秒数」一致时勿用总÷镜压短）
-  if (storyboardCount && videoDuration && effectiveShotDuration) {
+  // 单镜时长由内容决定；总时长和数量只负责整体规划。
+  if (storyboardCount && videoDuration) {
     const isEn = promptI18n.isEnglish(cfg);
-    const clipFromProject = videoClipDuration && Number(videoClipDuration) > 0;
-    const implied =
-      impliedFromTotal && impliedFromTotal > 0 ? impliedFromTotal : Math.round(Number(videoDuration) / Number(storyboardCount));
-    if (clipFromProject) {
-      const clip = Number(videoClipDuration);
-      if (isEn) {
-        extraConstraint += `\nEach shot "duration" field: prioritize **~${clip}s per shot** (project clip-length setting); ±1s OK. Total ~${Number(videoDuration)}s and ~${Number(storyboardCount)} shots are overall planning hints—do NOT force every shot to ~${implied}s (total÷count) when it conflicts with the project clip length.`;
-      } else {
-        extraConstraint += `\n每个镜头的 **duration** 请优先按项目「每段约 **${clip} 秒**」填写（可 ±1 秒微调）。全片总时长约 ${Number(videoDuration)} 秒、镜头数约 ${Number(storyboardCount)} 为整体规划参考，**禁止**为机械凑「总时长÷镜数」（约 ${implied}s）而把每镜普遍写成过短镜头；除非该镜对白与动作为实需的极短镜头。`;
-      }
-    } else if (isEn) {
-      extraConstraint += `\nEach shot target duration: approximately ${effectiveShotDuration}s (= total ${Number(videoDuration)}s ÷ ${Number(storyboardCount)} shots). Set each shot's duration field to this value, adjusting ±1s for dialogue/action length.`;
+    if (isEn) {
+      extraConstraint += `\nChoose each shot's duration independently within 4-15 seconds from its dialogue, action complexity, emotional pause, and narrative function. The total ~${Number(videoDuration)}s and ~${Number(storyboardCount)} shots are overall planning constraints, not a fixed per-shot duration; vary durations naturally while keeping the total close to target.`;
     } else {
-      extraConstraint += `\n每镜头目标时长：约 ${effectiveShotDuration} 秒（= 总时长 ${Number(videoDuration)}s ÷ ${Number(storyboardCount)} 个镜头）。每个镜头的 duration 字段请设为此值，可根据对话/动作长短适当调整 ±1 秒。`;
+      extraConstraint += `\n每条分镜请根据对白长度、动作复杂度、情绪停顿和叙事作用，在 4–15 秒内独立决定 duration。全片约 ${Number(videoDuration)} 秒、约 ${Number(storyboardCount)} 个分镜是整体规划约束，不是固定单镜时长；各镜时长应有自然差异，同时让总时长接近目标。`;
     }
   }
 
@@ -1154,7 +1141,7 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
     storyboard_count: storyboardCount,
     video_duration: videoDuration,
     video_clip_duration: videoClipDuration,
-    effective_shot_duration: effectiveShotDuration,
+    implied_average_duration: impliedFromTotal,
   });
 
   const charListLabel = promptI18n.formatUserPrompt(cfg, 'character_list_label');
@@ -1163,7 +1150,7 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
   const sceneConstraint = promptI18n.formatUserPrompt(cfg, 'scene_constraint');
   const propListLabel = promptI18n.formatUserPrompt(cfg, 'prop_list_label');
   const propConstraint = promptI18n.formatUserPrompt(cfg, 'prop_constraint');
-  const suffix = promptI18n.getStoryboardUserPromptSuffix(cfg, effectiveShotDuration);
+  const suffix = promptI18n.getStoryboardUserPromptSuffix(cfg);
 
   let userPrompt =
     `${scriptLabel}\n${scriptContent}\n\n${taskLabel}\n${taskInstruction}${extraConstraint}\n\n${charListLabel}\n${characterList}\n\n${charConstraint}\n\n${sceneListLabel}\n${sceneList}\n\n${sceneConstraint}\n\n${propListLabel}\n${propList}\n\n${propConstraint}\n\n${suffix}`;
@@ -1233,8 +1220,6 @@ The user enabled narrator voice-over for the whole episode. Every shot object MU
     // 确保分镜图/视频提示词、场景提取提示词都使用项目设定的比例
     const runCfg = { ...cfg, style: { ...(cfg?.style || {}), default_video_ratio: imageRatio, default_image_ratio: imageRatio } };
     // 如果 model 为 null，则传 undefined，让 generateText 内部去兜底找默认配置
-    const clipSec =
-      videoClipDuration && Number(videoClipDuration) > 0 ? Number(videoClipDuration) : null;
     processStoryboardGeneration(
       db,
       log,
@@ -1247,7 +1232,6 @@ The user enabled narrator voice-over for the whole episode. Every shot object MU
       systemPrompt,
       wantNarration,
       wantUniversalOmni,
-      clipSec,
       promptSkillIds
     );
   });
@@ -1536,6 +1520,8 @@ function splitStoryboardByAudio(db, log, storyboardId) {
 
 module.exports = {
   normalizeStoryboardShotNumber,
+  normalizeGeneratedStoryboardDuration,
+  sumStoryboardDurations,
   dedupeStoryboardRowsByNumber,
   getStoryboardsForEpisode,
   generateStoryboard,

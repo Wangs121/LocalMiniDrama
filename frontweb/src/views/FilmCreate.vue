@@ -410,13 +410,13 @@
             <el-option label="4:3" value="4:3" />
             <el-option label="21:9 宽银幕" value="21:9" />
           </el-select>
-          <el-select v-model="videoClipDuration" style="width: 105px" @change="() => saveProjectSettings(false)">
-            <el-option label="4秒/段" :value="4" />
-            <el-option label="5秒/段" :value="5" />
-            <el-option label="8秒/段" :value="8" />
-            <el-option label="10秒/段" :value="10" />
-            <el-option label="12秒/段" :value="12" />
-            <el-option label="15秒/段" :value="15" />
+          <el-select v-model="videoClipDuration" style="width: 150px" @change="() => saveProjectSettings(false)">
+            <el-option label="按4秒估算镜数" :value="4" />
+            <el-option label="按5秒估算镜数" :value="5" />
+            <el-option label="按8秒估算镜数" :value="8" />
+            <el-option label="按10秒估算镜数" :value="10" />
+            <el-option label="按12秒估算镜数" :value="12" />
+            <el-option label="按15秒估算镜数" :value="15" />
           </el-select>
           <el-select v-model="scriptLanguage" placeholder="分镜语言" clearable style="width: 105px">
             <el-option label="中文" value="zh" />
